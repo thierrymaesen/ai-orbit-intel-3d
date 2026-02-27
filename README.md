@@ -59,7 +59,7 @@ ai-orbit-intel-3d/
 
 ## Status
 
-🚧 **Sprint 0/10 Completed** — Initial project configuration and scaffolding.
+🚧 **Sprint 1/10 Completed** — CelesTrak TLE data ingestion module.
 
 ## Author
 
