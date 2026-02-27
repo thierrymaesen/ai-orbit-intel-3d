@@ -12,59 +12,59 @@ This project demonstrates senior-level software engineering skills combining orb
 ## Data Disclaimer
 
 > Orbital data provided by [CelesTrak](https://celestrak.org/). Used for educational and portfolio demonstration purposes.
->
-> ## Tech Stack
->
-> - **Backend**: Python 3.10+, FastAPI, Pydantic
-> - - **Orbital Mechanics**: Skyfield (SGP4 propagation)
->   - - **Machine Learning**: scikit-learn (Isolation Forest)
->     - - **Data Processing**: Pandas
->       - - **Frontend**: Jinja2 + Three.js (3D visualization)
->         - - **Scheduling**: schedule (periodic TLE ingestion)
->          
->           - ## Installation
->          
->           - ```bash
->             # Clone the repository
->             git clone https://github.com/thierrymaesen/ai-orbit-intel-3d.git
->             cd ai-orbit-intel-3d
->
->             # Install dependencies with Poetry
->             poetry install
->
->             # Run the application
->             poetry run uvicorn app.main:app --reload
->             ```
->
-> ## Project Structure
->
-> ```
-> ai-orbit-intel-3d/
-> ├── src/
-> │   └── orbit_intel/
-> │       └── __init__.py
-> ├── app/
-> │   ├── static/
-> │   └── templates/
-> ├── tests/
-> ├── data/
-> ├── .github/
-> │   └── workflows/
-> ├── pyproject.toml
-> ├── .gitignore
-> ├── .python-version
-> ├── LICENSE
-> └── README.md
-> ```
->
-> ## Status
->
-> 🚧 **Sprint 0/10 Completed** — Initial project configuration and scaffolding.
->
-> ## Author
->
-> **Thierry Maesen** — [GitHub](https://github.com/thierrymaesen)
->
-> ## License
->
-> This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
+
+## Tech Stack
+
+- **Backend**: Python 3.10+, FastAPI, Pydantic
+- **Orbital Mechanics**: Skyfield (SGP4 propagation)
+- **Machine Learning**: scikit-learn (Isolation Forest)
+- **Data Processing**: Pandas
+- **Frontend**: Jinja2 + Three.js (3D visualization)
+- **Scheduling**: schedule (periodic TLE ingestion)
+
+## Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/thierrymaesen/ai-orbit-intel-3d.git
+cd ai-orbit-intel-3d
+
+# Install dependencies with Poetry
+poetry install
+
+# Run the application
+poetry run uvicorn app.main:app --reload
+```
+
+## Project Structure
+
+```
+ai-orbit-intel-3d/
+├── src/
+│   └── orbit_intel/
+│       └── __init__.py
+├── app/
+│   ├── static/
+│   └── templates/
+├── tests/
+├── data/
+├── .github/
+│   └── workflows/
+├── pyproject.toml
+├── .gitignore
+├── .python-version
+├── LICENSE
+└── README.md
+```
+
+## Status
+
+🚧 **Sprint 0/10 Completed** — Initial project configuration and scaffolding.
+
+## Author
+
+**Thierry Maesen** — [GitHub](https://github.com/thierrymaesen)
+
+## License
+
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
