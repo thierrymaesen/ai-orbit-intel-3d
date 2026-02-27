@@ -59,7 +59,7 @@ ai-orbit-intel-3d/
 
 ## Status
 
-🚧 **Sprint 1/10 Completed** — CelesTrak TLE data ingestion module.
+🚧 **Sprint 2/10 Completed** — TLE parser and orbital feature engineering.
 
 ## Author
 
