@@ -17,6 +17,8 @@ import pandas as pd
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from skyfield.api import EarthSatellite, load
 
@@ -267,6 +269,19 @@ else:
               satellites=positions,
     )
 
+
+# -------------------------------------------------------------------
+# Sprint 5 — Frontend static files & root route
+# -------------------------------------------------------------------
+
+
+@app.get("/", tags=["frontend"], summary="3D Globe UI")
+async def root():
+          """Serve the Globe.gl 3D visualisation page."""
+    return FileResponse("app/templates/index.html")
+
+
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 if __name__ == "__main__":
       uvicorn.run(
