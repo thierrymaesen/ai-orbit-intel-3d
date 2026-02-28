@@ -7,7 +7,7 @@
 
 Real-time 3D Satellite Visualization & Orbital Anomaly Detection using AI (Isolation Forest) and CelesTrak TLE data.
 
-This project demonstrates senior-level software engineering skills combining orbital mechanics (SGP4 via Skyfield), unsupervised Machine Learning (Isolation Forest via scikit-learn), and interactive 3D visualization — all built with a clean, production-grade Python architecture.
+This project demonstrates senior-level software engineering skilhls combining orbital mechanics (SGP4 via Skyfield), unsupervised Machine Learning (Isolation Forest via scikit-learn), and interactive 3D visualization — all built with a clean, production-grade Python architecture.
 
 ## Data Disclaimer
 
@@ -42,7 +42,10 @@ poetry run uvicorn app.main:app --reload
 ai-orbit-intel-3d/
 ├── src/
 │   └── orbit_intel/
-│       └── __init__.py
+│       ├── __init__.py
+│       ├── ingest.py
+│       ├── dynamics.py
+│       └── anomaly.py
 ├── app/
 │   ├── static/
 │   └── templates/
@@ -59,7 +62,7 @@ ai-orbit-intel-3d/
 
 ## Status
 
-🚧 **Sprint 2/10 Completed** — TLE parser and orbital feature engineering.
+🚧 **Sprint 3/10 Completed** — Isolation Forest anomaly detection engine.
 
 ## Author
 
