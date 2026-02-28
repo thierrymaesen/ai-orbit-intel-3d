@@ -1,54 +1,53 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AI-Orbit Intelligence 3D</title>
-    <link rel="stylesheet" href="/static/app.css" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI-Orbit Intelligence 3D</title>
+  <link rel="stylesheet" href="/static/app.css" />
 </head>
 <body>
 
-    <!-- 3D Globe canvas -->
-    <div id="globeViz"></div>
+  <!-- 3D Globe canvas -->
+  <div id="globeViz"></div>
 
-    <!-- Left panel: controls, filters, stats -->
-    <div id="controls-panel">
-        <h1 style="color: #F2F2F2;">AI-Orbit Intel 3D</h1>
-        <p class="panel-subtitle">Real-time Tracking &amp; Anomaly Detection</p>
+  <!-- Left panel: controls, filters, stats -->
+  <div id="controls-panel">
+    <h1 style="color: #F2F2F2;">AI-Orbit Intel 3D</h1>
+    <p class="panel-subtitle">Real-time Tracking &amp; Anomaly Detection</p>
 
-        <div class="filters-group">
-            <button class="filter-btn active" data-filter="ALL">All</button>
-            <button class="filter-btn" data-filter="LEO">LEO</button>
-            <button class="filter-btn" data-filter="MEO">MEO</button>
-            <button class="filter-btn" data-filter="GEO">GEO</button>
-            <button class="filter-btn" data-filter="ANOMALIES">Anomalies Only</button>
-        </div>
-
-        <div class="stats-grid">
-            <div class="stat-card">
-                <span class="stat-label">Satellites Tracked</span>
-                <span class="stat-value" id="total-sats">&mdash;</span>
-            </div>
-            <div class="stat-card anomaly-card">
-                <span class="stat-label">Anomalies Detected</span>
-                <span class="stat-value anomaly-value" id="anomalies-count">&mdash;</span>
-            </div>
-        </div>
-
-        <div class="status-bar">
-            <span class="status-dot"></span>
-            <span class="status-text" id="status-text">Connecting&hellip;</span>
-        </div>
+    <div class="filters-group">
+      <button class="filter-btn active" data-filter="ALL">All</button>
+      <button class="filter-btn" data-filter="LEO">LEO</button>
+      <button class="filter-btn" data-filter="MEO">MEO</button>
+      <button class="filter-btn" data-filter="GEO">GEO</button>
+      <button class="filter-btn" data-filter="ANOMALIES">Anomalies Only</button>
     </div>
 
-    <!-- Right panel: anomalies list -->
-    <div id="anomalies-panel">
-        <h2 class="anomalies-panel-title">Top Anomalies</h2>
-        <div id="anomalies-list"></div>
+    <div class="stats-grid">
+      <div class="stat-card">
+        <span class="stat-label">Satellites Tracked</span>
+        <span class="stat-value" id="total-sats">&mdash;</span>
+      </div>
+      <div class="stat-card anomaly-card">
+        <span class="stat-label">Anomalies Detected</span>
+        <span class="stat-value anomaly-value" id="anomalies-count">&mdash;</span>
+      </div>
     </div>
 
-    <script src="//unpkg.com/three@0.160.0/build/three.min.js"></script>
-    <script src="//unpkg.com/globe.gl"></script>
-    <script src="/static/app.js"></script>
+    <div class="status-bar">
+      <span class="status-dot"></span>
+      <span class="status-text" id="status-text">Connecting&hellip;</span>
+    </div>
+  </div>
+
+  <!-- Right panel: anomalies list -->
+  <div id="anomalies-panel">
+    <h2 class="anomalies-panel-title">Top Anomalies</h2>
+    <div id="anomalies-list"></div>
+  </div>
+
+  <script src="//unpkg.com/globe.gl"></script>
+  <script src="/static/app.js"></script>
 </body>
 </html>
