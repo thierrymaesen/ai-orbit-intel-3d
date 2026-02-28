@@ -27,8 +27,8 @@ from .dynamics import extract_features, load_tle_objects
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
-      level=logging.INFO,
-      format="%(asctime)s - %(levelname)s - %(message)s",
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
 )
 
 DEFAULT_DATA_DIR: Path = Path("data")
@@ -37,8 +37,8 @@ MAX_SATELLITES: int = 1000
 ts = load.timescale()
 
 APP_STATE: Dict[str, Any] = {
-      "satellites": [],
-      "df_anomalies": None,
+    "satellites": [],
+    "df_anomalies": None,
 }
 
 
@@ -48,53 +48,49 @@ APP_STATE: Dict[str, Any] = {
 
 
 class SatellitePosition(BaseModel):
-      """Real-time position of a single satellite."""
+    """Real-time position of a single satellite."""
 
     name: str = Field(..., examples=["ISS (ZARYA)"])
     norad_id: int = Field(..., examples=[25544])
     lat: float = Field(
-              ...,
-              examples=[51.64],
-              description="Latitude in degrees.",
+        ...,
+        examples=[51.64],
+        description="Latitude in degrees.",
     )
     lon: float = Field(
-              ...,
-              examples=[-0.12],
-              description="Longitude in degrees.",
+        ...,
+        examples=[0.12],
+        description="Longitude in degrees.",
     )
     alt: float = Field(
-              ...,
-              examples=[408.0],
-              description="Altitude in kilometres.",
+        ...,
+        examples=[408.0],
+        description="Altitude in kilometres.",
     )
     anomaly_score: float = Field(
-              ...,
-              ge=0.0,
-              le=1.0,
-              examples=[0.12],
-              description=(
-                            "Anomaly severity: "
-                            "0.0 = normal, 1.0 = highly anomalous."
-              ),
+        ...,
+        ge=0.0,
+        le=1.0,
+        examples=[0.12],
+        description="Anomaly severity: "
+        "0.0 = normal, 1.0 = highly anomalous.",
     )
     is_anomaly: bool = Field(
-              ...,
-              examples=[False],
-              description="True if flagged as anomalous.",
+        ...,
+        examples=[False],
+        description="True if flagged as anomalous.",
     )
 
 
 class PositionsResponse(BaseModel):
-      """Batch response for all satellite positions."""
+    """Batch response for all satellite positions."""
 
     timestamp: float = Field(
-              ...,
-              examples=[1709136000.0],
-              description="Unix epoch of the computation.",
+        ...,
+        examples=[1709136000.0],
+        description="Unix epoch of the computation.",
     )
-    total_satellites: int = Field(
-              ..., examples=[1000]
-    )
+    total_satellites: int = Field(..., examples=[1000])
     satellites: List[SatellitePosition]
 
 
@@ -105,26 +101,23 @@ class PositionsResponse(BaseModel):
 
 @asynccontextmanager
 async def lifespan(
-      app: FastAPI,
+    app: FastAPI,
 ) -> AsyncGenerator[None, None]:
-      """Initialise satellite data and AI engine on startup.
+    """Initialise satellite data and AI engine on startup.
 
-          Loads TLE objects, extracts orbital features, trains the
-              Isolation Forest anomaly detector, and caches everything
-                  in ``APP_STATE`` for use by the request handlers.
-                      """
-      logger.info(
-          "Initializing Space Data & AI Engine..."
-      )
+    Loads TLE objects, extracts orbital features, trains the
+    Isolation Forest anomaly detector, and caches everything
+    in ``APP_STATE`` for use by the request handlers.
+    """
+    logger.info("Initializing Space Data & AI Engine...")
 
     sats: List[EarthSatellite] = load_tle_objects(
-              data_dir=DEFAULT_DATA_DIR,
+        data_dir=DEFAULT_DATA_DIR,
     )
-
     sats = sats[:MAX_SATELLITES]
     logger.info(
-              "Limited to %d satellites for demo performance",
-              len(sats),
+        "Limited to %d satellites for demo performance",
+        len(sats),
     )
     APP_STATE["satellites"] = sats
 
@@ -134,10 +127,10 @@ async def lifespan(
     APP_STATE["df_anomalies"] = df_anomalies
 
     logger.info(
-              "Startup complete — %d satellites ready, "
-              "%d anomalies detected",
-              len(sats),
-              int(df_anomalies["is_anomaly"].sum()),
+        "Startup complete — %d satellites ready, "
+        "%d anomalies detected",
+        len(sats),
+        int(df_anomalies["is_anomaly"].sum()),
     )
 
     yield
@@ -152,21 +145,21 @@ async def lifespan(
 # -------------------------------------------------------------------
 
 app = FastAPI(
-      title="AI-Orbit Intelligence 3D API",
-      description=(
-                "Real-time satellite position tracking enriched "
-                "with Isolation Forest anomaly scores."
-      ),
-      version="0.4.0",
-      lifespan=lifespan,
+    title="AI-Orbit Intelligence 3D API",
+    description=(
+        "Real-time satellite position tracking enriched "
+        "with Isolation Forest anomaly scores."
+    ),
+    version="0.5.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
-      CORSMiddleware,
-      allow_origins=["*"],
-      allow_credentials=True,
-      allow_methods=["*"],
-      allow_headers=["*"],
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
@@ -176,97 +169,94 @@ app.add_middleware(
 
 
 @app.get(
-      "/health",
-      tags=["system"],
-      summary="Health check",
+    "/health",
+    tags=["system"],
+    summary="Health check",
 )
 async def health() -> Dict[str, Any]:
-      """Return application health and loaded satellite count."""
-      return {
-          "status": "ok",
-          "satellites_loaded": len(
-              APP_STATE["satellites"]
-          ),
-      }
+    """Return application health and loaded satellite count."""
+    return {
+        "status": "ok",
+        "satellites_loaded": len(
+            APP_STATE["satellites"]
+        ),
+    }
 
 
 @app.get(
-      "/api/positions",
-      response_model=PositionsResponse,
-      tags=["positions"],
-      summary="Real-time satellite positions",
+    "/api/positions",
+    response_model=PositionsResponse,
+    tags=["positions"],
+    summary="Real-time satellite positions",
 )
 async def get_positions() -> PositionsResponse:
-      """Compute current lat/lon/alt for every satellite.
+    """Compute current lat/lon/alt for every satellite.
 
-          Propagates each satellite to the current instant using
-              the Skyfield SGP4 engine, then enriches the result with
-                  the pre-computed anomaly score from the Isolation Forest
-                      model trained at startup.
+    Propagates each satellite to the current instant using
+    the Skyfield SGP4 engine, then enriches the result with
+    the pre-computed anomaly score from the Isolation Forest
+    model trained at startup.
 
-                          Returns:
-                                  PositionsResponse with a list of satellite positions.
+    Returns:
+        PositionsResponse with a list of satellite positions.
 
-                                      Raises:
-                                              HTTPException: 503 if satellite data is not loaded.
-                                                  """
-      sats: List[EarthSatellite] = APP_STATE["satellites"]
-      df_anom: pd.DataFrame = APP_STATE["df_anomalies"]
+    Raises:
+        HTTPException: 503 if satellite data is not loaded.
+    """
+    sats: List[EarthSatellite] = APP_STATE["satellites"]
+    df_anom: pd.DataFrame = APP_STATE["df_anomalies"]
 
     if not sats or df_anom is None:
-              raise HTTPException(
-                            status_code=503,
-                            detail=(
-                                              "Satellite data not loaded. "
-                                              "The server is still initialising."
-                            ),
-              )
+        raise HTTPException(
+            status_code=503,
+            detail="Satellite data not loaded. "
+            "The server is still initialising.",
+        )
 
     anomaly_index: Dict[int, Dict[str, Any]] = (
-              df_anom[["anomaly_score", "is_anomaly"]]
-              .to_dict("index")
+        df_anom[["anomaly_score", "is_anomaly"]]
+        .to_dict("index")
     )
 
     t_now = ts.now()
     positions: List[SatellitePosition] = []
 
     for sat in sats:
-              try:
-                            geocentric = sat.at(t_now)
-                            subpoint = geocentric.subpoint()
-
-                  lat: float = subpoint.latitude.degrees
+        try:
+            geocentric = sat.at(t_now)
+            subpoint = geocentric.subpoint()
+            lat: float = subpoint.latitude.degrees
             lon: float = subpoint.longitude.degrees
             alt: float = subpoint.elevation.km
-except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001
             continue
 
         norad_id: int = sat.model.satnum
         anom_data = anomaly_index.get(norad_id)
 
         if anom_data is not None:
-                      score = float(anom_data["anomaly_score"])
-                      flagged = bool(anom_data["is_anomaly"])
-else:
+            score = float(anom_data["anomaly_score"])
+            flagged = bool(anom_data["is_anomaly"])
+        else:
             score = 0.0
             flagged = False
 
         positions.append(
-                      SatellitePosition(
-                                        name=sat.name,
-                                        norad_id=norad_id,
-                                        lat=round(lat, 4),
-                                        lon=round(lon, 4),
-                                        alt=round(alt, 2),
-                                        anomaly_score=round(score, 4),
-                                        is_anomaly=flagged,
-                      )
+            SatellitePosition(
+                name=sat.name,
+                norad_id=norad_id,
+                lat=round(lat, 4),
+                lon=round(lon, 4),
+                alt=round(alt, 2),
+                anomaly_score=round(score, 4),
+                is_anomaly=flagged,
+            )
         )
 
     return PositionsResponse(
-              timestamp=time.time(),
-              total_satellites=len(positions),
-              satellites=positions,
+        timestamp=time.time(),
+        total_satellites=len(positions),
+        satellites=positions,
     )
 
 
@@ -277,16 +267,17 @@ else:
 
 @app.get("/", tags=["frontend"], summary="3D Globe UI")
 async def root():
-          """Serve the Globe.gl 3D visualisation page."""
+    """Serve the Globe.gl 3D visualisation page."""
     return FileResponse("app/templates/index.html")
 
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
+
 if __name__ == "__main__":
-      uvicorn.run(
-                "orbit_intel.api:app",
-                host="0.0.0.0",
-                port=8000,
-                reload=True,
-      )
+    uvicorn.run(
+        "orbit_intel.api:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=True,
+    )
