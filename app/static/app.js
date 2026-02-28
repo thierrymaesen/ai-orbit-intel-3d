@@ -2,17 +2,19 @@
    AI-Orbit Intelligence 3D — Globe.gl Application  (Sprint 6)
 
    Full-scale catalogue, orbit-type filters, logarithmic visual
-   altitude compression, interactive anomaly list, spherical points.
+   altitude compression, interactive anomaly list.
+   Uses customLayerData + THREE.js sprites for true dot rendering
+   (no hedgehog lines).
    ================================================================ */
 
 // -------------------------------------------------------------------
 // Constants
 // -------------------------------------------------------------------
-var API_URL   = "/api/positions";
-var REFRESH_MS = 5000;           // 5 s refresh for 10k+ satellites
+var API_URL    = "/api/positions";
+var REFRESH_MS = 5000;
 
-var COLOR_NORMAL  = "#0442BF";   // Brilliant Blue
-var COLOR_ANOMALY = "#F2C641";   // Golden Yellow
+var COLOR_NORMAL  = "#0442BF";
+var COLOR_ANOMALY = "#F2C641";
 var COLOR_RING    = "rgba(242, 198, 65, 0.35)";
 
 // -------------------------------------------------------------------
@@ -23,24 +25,48 @@ var currentFilter = "ALL";
 // -------------------------------------------------------------------
 // DOM refs
 // -------------------------------------------------------------------
-var elTotalSats     = document.getElementById("total-sats");
+var elTotalSats      = document.getElementById("total-sats");
 var elAnomaliesCount = document.getElementById("anomalies-count");
-var elStatus        = document.getElementById("status-text");
-var elAnomaliesList = document.getElementById("anomalies-list");
+var elStatus         = document.getElementById("status-text");
+var elAnomaliesList  = document.getElementById("anomalies-list");
 
 // -------------------------------------------------------------------
 // Visual altitude: logarithmic compression
-// -------------------------------------------------------------------
-// LEO  (~400 km)  -> log10(401)  / 5 ~ 0.52  -> visible close to globe
-// MEO  (~20k km)  -> log10(20001)/ 5 ~ 0.86
-// GEO  (~35786)   -> log10(35787)/ 5 ~ 0.91  -> still on screen
 // -------------------------------------------------------------------
 function visualAltitude(altKm) {
     return Math.log10(altKm + 1) / 5;
 }
 
 // -------------------------------------------------------------------
-// Globe initialisation — spherical points (no lines / hedgehog)
+// THREE.js helpers — create a circle sprite texture
+// -------------------------------------------------------------------
+function createCircleTexture(color, size) {
+    var canvas = document.createElement("canvas");
+    canvas.width = size;
+    canvas.height = size;
+    var ctx = canvas.getContext("2d");
+    ctx.beginPath();
+    ctx.arc(size / 2, size / 2, size / 2 - 1, 0, 2 * Math.PI);
+    ctx.fillStyle = color;
+    ctx.fill();
+    var tex = new THREE.CanvasTexture(canvas);
+    return tex;
+}
+
+var texNormal  = null;
+var texAnomaly = null;
+
+function getTexture(isAnomaly) {
+    if (isAnomaly) {
+        if (!texAnomaly) texAnomaly = createCircleTexture(COLOR_ANOMALY, 64);
+        return texAnomaly;
+    }
+    if (!texNormal) texNormal = createCircleTexture(COLOR_NORMAL, 64);
+    return texNormal;
+}
+
+// -------------------------------------------------------------------
+// Globe initialisation
 // -------------------------------------------------------------------
 var myGlobe = Globe()(document.getElementById("globeViz"))
     .globeImageUrl("//unpkg.com/three-globe/example/img/earth-blue-marble.jpg")
@@ -50,31 +76,37 @@ var myGlobe = Globe()(document.getElementById("globeViz"))
     .atmosphereColor("#0442BF")
     .atmosphereAltitude(0.25)
 
-    // Points layer (satellites) — spherical dots, no lines
-    .pointsData([])
-    .pointLat("lat")
-    .pointLng("lng")
-    .pointAltitude(function (d) {
-        return visualAltitude(d.altitude);
+    // Custom layer: THREE.js sprites as true floating dots
+    .customLayerData([])
+    .customThreeObject(function (d) {
+        var sprite = new THREE.Sprite(
+            new THREE.SpriteMaterial({
+                map: getTexture(d.is_anomaly),
+                transparent: true,
+                depthWrite: false
+            })
+        );
+        var s = d.is_anomaly ? 1.8 : 0.7;
+        sprite.scale.set(s, s, 1);
+        sprite.__data = d;
+        return sprite;
     })
-    .pointRadius(function (d) {
-        return d.is_anomaly ? 0.05 : 0.02;
+    .customThreeObjectUpdate(function (obj, d) {
+        Object.assign(obj.position, myGlobe.getCoords(d.lat, d.lng, visualAltitude(d.altitude)));
+        var s = d.is_anomaly ? 1.8 : 0.7;
+        obj.scale.set(s, s, 1);
+        obj.__data = d;
     })
-    .pointColor(function (d) {
-        return d.is_anomaly ? COLOR_ANOMALY : COLOR_NORMAL;
-    })
-    .pointLabel(function (d) {
-        return d.labelHtml;
-    })
-    .onPointClick(function (d) {
+    .onCustomLayerClick(function (obj) {
+        var d = obj.__data || obj;
         myGlobe.pointOfView(
-            {
-                lat: d.lat,
-                lng: d.lng,
-                altitude: visualAltitude(d.altitude) + 0.5
-            },
+            { lat: d.lat, lng: d.lng, altitude: visualAltitude(d.altitude) + 0.5 },
             1000
         );
+    })
+    .customLayerLabel(function (obj) {
+        var d = obj.__data || obj;
+        return buildTooltip(d);
     })
 
     // Rings layer (anomaly pulse)
@@ -84,9 +116,7 @@ var myGlobe = Globe()(document.getElementById("globeViz"))
     .ringAltitude(function (d) {
         return visualAltitude(d.altitude);
     })
-    .ringColor(function () {
-        return COLOR_RING;
-    })
+    .ringColor(function () { return COLOR_RING; })
     .ringMaxRadius(2)
     .ringPropagationSpeed(2)
     .ringRepeatPeriod(1400);
@@ -96,19 +126,14 @@ myGlobe.controls().autoRotate = true;
 myGlobe.controls().autoRotateSpeed = 0.3;
 
 // -------------------------------------------------------------------
-// Filter buttons — wiring
+// Filter buttons
 // -------------------------------------------------------------------
 var filterButtons = document.querySelectorAll(".filter-btn");
 
 filterButtons.forEach(function (btn) {
     btn.addEventListener("click", function () {
-        // Update active class
-        filterButtons.forEach(function (b) {
-            b.classList.remove("active");
-        });
+        filterButtons.forEach(function (b) { b.classList.remove("active"); });
         btn.classList.add("active");
-
-        // Update global filter and refetch
         currentFilter = btn.getAttribute("data-filter");
         fetchData();
     });
@@ -128,8 +153,8 @@ function buildTooltip(s) {
         '<span style="opacity:0.7;">Orbit:</span> ' + s.orbit_type + '<br>' +
         '<span style="opacity:0.7;">Alt:</span> ' + s.alt.toFixed(0) + ' km<br>' +
         '<span style="opacity:0.7;">AI Score:</span> ' +
-        '<span style="color:' + (s.anomaly_score > 0.5 ? COLOR_ANOMALY : COLOR_NORMAL) + ';font-weight:700;">' +
-        s.anomaly_score.toFixed(4) + '</span>' +
+        '<span style="color:' + (s.anomaly_score > 0.5 ? COLOR_ANOMALY : COLOR_NORMAL) +
+        ';font-weight:700;">' + s.anomaly_score.toFixed(4) + '</span>' +
         '</div>'
     );
 }
@@ -144,7 +169,6 @@ function buildAnomaliesPanel(anomalies) {
         return;
     }
 
-    // Sort by score descending, show top 50
     var sorted = anomalies.slice().sort(function (a, b) {
         return b.anomaly_score - a.anomaly_score;
     });
@@ -162,13 +186,11 @@ function buildAnomaliesPanel(anomalies) {
             s.orbit_type + ' \u00B7 ' + s.alt.toFixed(0) + ' km \u00B7 ' +
             'Score: <span class="anomaly-item-score">' +
             s.anomaly_score.toFixed(4) + '</span>' +
-            '</div>' +
-            '</div>';
+            '</div></div>';
     });
 
     elAnomaliesList.innerHTML = html;
 
-    // Attach click-to-zoom
     var items = elAnomaliesList.querySelectorAll(".anomaly-item");
     items.forEach(function (item) {
         item.addEventListener("click", function () {
@@ -193,7 +215,6 @@ async function fetchData() {
         if (!res.ok) throw new Error("HTTP " + res.status);
         var data = await res.json();
 
-        // Counters
         var total = data.total_satellites;
         var anomalies = data.satellites.filter(function (s) {
             return s.is_anomaly;
@@ -203,8 +224,8 @@ async function fetchData() {
         elAnomaliesCount.textContent = anomalies.length.toLocaleString();
         elStatus.textContent = "Live \u2014 " + new Date().toLocaleTimeString();
 
-        // Format for Globe.gl — spherical points
-        var points = data.satellites.map(function (s) {
+        // Custom layer data: dots positioned at altitude
+        var dots = data.satellites.map(function (s) {
             return {
                 lat: s.lat,
                 lng: s.lon,
@@ -212,24 +233,17 @@ async function fetchData() {
                 is_anomaly: s.is_anomaly,
                 orbit_type: s.orbit_type,
                 anomaly_score: s.anomaly_score,
-                name: s.name,
-                labelHtml: buildTooltip(s)
+                name: s.name
             };
         });
 
-        // Rings only on anomalies
         var rings = anomalies.map(function (s) {
-            return {
-                lat: s.lat,
-                lng: s.lon,
-                altitude: s.alt
-            };
+            return { lat: s.lat, lng: s.lon, altitude: s.alt };
         });
 
-        myGlobe.pointsData(points);
+        myGlobe.customLayerData(dots);
         myGlobe.ringsData(rings);
 
-        // Build anomalies list panel
         buildAnomaliesPanel(anomalies);
 
     } catch (err) {
