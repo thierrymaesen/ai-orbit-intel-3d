@@ -9,8 +9,10 @@ import logging
 from pathlib import Path
 from typing import List, Optional
 
-from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 
 from orbit_intel.anomaly import OrbitalAnomalyDetector
@@ -24,6 +26,7 @@ logging.basicConfig(
 )
 
 DEFAULT_DATA_DIR: Path = Path("data")
+BASE_DIR: Path = Path(__file__).resolve().parent
 
 app = FastAPI(
     title="AI-Orbit Intelligence 3D",
@@ -34,6 +37,10 @@ app = FastAPI(
     ),
     version="0.4.0",
 )
+
+# Mount static files and templates
+app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
+templates = Jinja2Templates(directory=BASE_DIR / "templates")
 
 
 # ---------------------------------------------------------------------------
@@ -101,6 +108,12 @@ _state: dict = {
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
+
+
+@app.get("/", response_class=HTMLResponse, tags=["frontend"])
+async def index(request: Request):
+    """Serve the 3D globe visualization frontend."""
+    return templates.TemplateResponse("index.html", {"request": request})
 
 
 @app.get(
