@@ -48,7 +48,8 @@ ai-orbit-intel-3d/
 │       └── anomaly.py
 ├── app/
 │   ├── static/
-│   └── templates/
+│   ├── templates/
+│   └── main.py
 ├── tests/
 ├── data/
 ├── .github/
@@ -62,7 +63,7 @@ ai-orbit-intel-3d/
 
 ## Status
 
-🚧 **Sprint 3/10 Completed** — Isolation Forest anomaly detection engine.
+🚧 **Sprint 4/10 Completed** — FastAPI REST API with Pydantic models.
 
 ## Author
 
