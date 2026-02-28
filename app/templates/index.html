@@ -1,53 +1,73 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AI-Orbit Intelligence 3D</title>
-  <link rel="stylesheet" href="/static/app.css" />
-</head>
+  <head>
+      <meta charset="UTF-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <title>AI-Orbit Intelligence 3D</title>
+    <link rel="stylesheet" href="/static/app.css" />
+  </head>
 <body>
 
-  <!-- 3D Globe canvas -->
-  <div id="globeViz"></div>
+    <!-- 3D Globe canvas -->
+    <div id="globeViz"></div>div>
 
-  <!-- Left panel: controls, filters, stats -->
-  <div id="controls-panel">
-    <h1 style="color: #F2F2F2;">AI-Orbit Intel 3D</h1>
-    <p class="panel-subtitle">Real-time Tracking &amp; Anomaly Detection</p>
+    <!-- Left panel: controls, filters, stats -->
+    <div id="controls-panel">
+          <h1 style="color: #F2F2F2;">AI-Orbit Intel 3D</h1>h1>
+          <p class="panel-subtitle">Real-time Tracking &amp; Anomaly Detection</p>p>
 
-    <div class="filters-group">
-      <button class="filter-btn active" data-filter="ALL">All</button>
-      <button class="filter-btn" data-filter="LEO">LEO</button>
-      <button class="filter-btn" data-filter="MEO">MEO</button>
-      <button class="filter-btn" data-filter="GEO">GEO</button>
-      <button class="filter-btn" data-filter="ANOMALIES">Anomalies Only</button>
-    </div>
+          <div class="filters-group">
+                  <button class="filter-btn active" data-filter="ALL">All</button>button>
+                  <button class="filter-btn" data-filter="LEO">LEO</button>button>
+                  <button class="filter-btn" data-filter="MEO">MEO</button>button>
+                  <button class="filter-btn" data-filter="GEO">GEO</button>button>
+                  <button class="filter-btn" data-filter="ANOMALIES">Anomalies Only</button>button>
+                  <button class="filter-btn" data-filter="TOP10">Top 10 Anomalies</button>button>
+          </div>div>
 
-    <div class="stats-grid">
-      <div class="stat-card">
-        <span class="stat-label">Satellites Tracked</span>
-        <span class="stat-value" id="total-sats">&mdash;</span>
-      </div>
-      <div class="stat-card anomaly-card">
-        <span class="stat-label">Anomalies Detected</span>
-        <span class="stat-value anomaly-value" id="anomalies-count">&mdash;</span>
-      </div>
-    </div>
+          <div class="stats-grid">
+                  <div class="stat-card">
+                            <span class="stat-label">Satellites Tracked</span>span>
+                            <span class="stat-value" id="total-sats">&mdash;</span>span>
+                  </div>div>
+                  <div class="stat-card anomaly-card">
+                            <span class="stat-label">Anomalies Detected</span>span>
+                            <span class="stat-value anomaly-value" id="anomalies-count">&mdash;</span>span>
+                  </div>div>
+          </div>div>
 
-    <div class="status-bar">
-      <span class="status-dot"></span>
-      <span class="status-text" id="status-text">Connecting&hellip;</span>
-    </div>
-  </div>
+          <div class="status-bar">
+                  <span class="status-dot"></span>span>
+                  <span class="status-text" id="status-text">Connecting&hellip;</span>span>
+          </div>div>
 
-  <!-- Right panel: anomalies list -->
-  <div id="anomalies-panel">
-    <h2 class="anomalies-panel-title">Top Anomalies</h2>
-    <div id="anomalies-list"></div>
-  </div>
+          <!-- Toggle Vectors button -->
+          <button id="toggle-vectors-btn" class="filter-btn" style="margin-top: 15px; border: 1px solid #F2C641;">Toggle Vectors (Lines)</button>button>
 
-  <script src="//unpkg.com/globe.gl"></script>
-  <script src="/static/app.js"></script>
+          <!-- Footer Portfolio -->
+          <div style="margin-top: 25px; padding-top: 15px; border-top: 1px solid #03318C; font-size: 0.85em; text-align: center;">
+                  Created by <br/>
+                  <strong style="color: #F2C641; font-size: 1.1em;">Thierry Maesen</strong>strong><br/>
+                  <a href="https://github.com/thierrymaesen" target="_blank" style="color: #F2F2F2; text-decoration: none; display: inline-block; margin-top: 5px;">&#9733; View on GitHub</a>a>
+          </div>div>
+    </div>div>
+
+    <!-- Right panel: anomalies list -->
+    <div id="anomalies-panel">
+          <h2 class="anomalies-panel-title">Top Anomalies</h2>h2>
+          <div id="anomalies-list"></div>div>
+    </div>div>
+
+    <!-- Wikipedia info modal -->
+    <div id="wiki-modal" style="display: none; position: absolute; bottom: 20px; right: 20px; width: 320px; background: rgba(2, 24, 89, 0.95); border: 2px solid #F2C641; padding: 15px; color: #F2F2F2; z-index: 100; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.5);">
+          <span id="wiki-close" style="float: right; cursor: pointer; color: #F2C641; font-weight: bold; font-size: 1.2em;">X</span>span>
+          <h3 id="wiki-title" style="margin-top: 0; color: #F2C641; font-size: 1.1em;"></h3>h3>
+          <p id="wiki-content" style="font-size: 0.9em; line-height: 1.4; max-height: 200px; overflow-y: auto;"></p>p>
+    </div>div>
+
+    <script src="//unpkg.com/globe.gl"></script>
+    <script src="/static/app.js"></script>
 </body>
-</html>
+</html>html>
+</body></title>
+  </head>
