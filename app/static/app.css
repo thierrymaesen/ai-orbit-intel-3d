@@ -1,11 +1,11 @@
 /* ================================================================
    AI-Orbit Intelligence 3D — Stylesheet  (Sprint 6)
    Color charter:
-     PRIMARY_DARK     #021859
-     BRILLIANT_BLUE   #0442BF
-     DEEP_BLUE        #03318C
-     GOLDEN_YELLOW    #F2C641
-     OFF_WHITE        #F2F2F2
+       PRIMARY_DARK    #021859
+       BRILLIANT_BLUE  #0442BF
+       DEEP_BLUE       #03318C
+       GOLDEN_YELLOW   #F2C641
+       OFF_WHITE       #F2F2F2
    ================================================================ */
 
 /* Reset & Base */
@@ -37,6 +37,7 @@ body {
 /* ----------------------------------------------------------------
    Left Panel — Controls, Filters, Stats
    ---------------------------------------------------------------- */
+
 #controls-panel {
     position: absolute;
     top: 20px;
@@ -73,6 +74,7 @@ body {
 /* ----------------------------------------------------------------
    Filter buttons
    ---------------------------------------------------------------- */
+
 .filters-group {
     display: flex;
     flex-wrap: wrap;
@@ -104,6 +106,7 @@ body {
 /* ----------------------------------------------------------------
    Stat Cards
    ---------------------------------------------------------------- */
+
 .stats-grid {
     display: flex;
     flex-direction: column;
@@ -174,6 +177,7 @@ body {
 /* ----------------------------------------------------------------
    Right Panel — Anomalies List
    ---------------------------------------------------------------- */
+
 #anomalies-panel {
     position: absolute;
     top: 20px;
@@ -184,7 +188,7 @@ body {
     color: #F2F2F2;
     z-index: 10;
     width: 300px;
-    max-height: 80vh;
+    max-height: calc(100vh - 40px);
     overflow-y: auto;
     border-radius: 8px;
     backdrop-filter: blur(12px);
@@ -206,8 +210,8 @@ body {
     border: 1px solid #03318C;
     border-left: 3px solid #F2C641;
     border-radius: 4px;
-    padding: 10px 12px;
-    margin-bottom: 8px;
+    padding: 8px 10px;
+    margin-bottom: 6px;
     cursor: pointer;
     transition: background 0.2s, border-color 0.2s;
 }
@@ -218,16 +222,16 @@ body {
 }
 
 .anomaly-item-name {
-    font-size: 0.8rem;
+    font-size: 0.78rem;
     font-weight: 600;
     color: #F2F2F2;
-    margin-bottom: 4px;
+    margin-bottom: 2px;
 }
 
 .anomaly-item-details {
-    font-size: 0.68rem;
+    font-size: 0.65rem;
     opacity: 0.7;
-    line-height: 1.4;
+    line-height: 1.3;
 }
 
 .anomaly-item-score {
