@@ -46,9 +46,9 @@ def classify_orbit(altitude_km: float) -> str:
         """Classify orbit: LEO < 2000 km, GEO > 35000 km, else MEO."""
         if altitude_km < 2000:
                     return "LEO"
-                if altitude_km > 35000:
-                            return "GEO"
-                        return "MEO"
+            if altitude_km > 35000:
+                        return "GEO"
+                return "MEO"
 
 
 class SatellitePosition(BaseModel):
