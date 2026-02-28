@@ -1,136 +1,254 @@
 /* ================================================================
-   AI-Orbit Intelligence 3D — Stylesheet
+   AI-Orbit Intelligence 3D — Stylesheet  (Sprint 6)
    Color charter:
-     PRIMARY_DARK   #021859    BRILLIANT_BLUE  #0442BF
-     DEEP_BLUE      #03318C    GOLDEN_YELLOW   #F2C641
-     OFF_WHITE      #F2F2F2
+     PRIMARY_DARK     #021859
+     BRILLIANT_BLUE   #0442BF
+     DEEP_BLUE        #03318C
+     GOLDEN_YELLOW    #F2C641
+     OFF_WHITE        #F2F2F2
    ================================================================ */
 
 /* Reset & Base */
 *,
 *::before,
 *::after {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
 }
 
 body {
-      margin: 0;
-      font-family: 'Helvetica', 'Arial', sans-serif;
-      background: #021859;
-      color: #F2F2F2;
-      overflow: hidden;
+    margin: 0;
+    font-family: 'Helvetica', 'Arial', sans-serif;
+    background: #021859;
+    color: #F2F2F2;
+    overflow: hidden;
 }
 
 /* Globe */
 #globeViz {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
 }
 
-/* Overlay Panel */
-#ui-panel {
-      position: absolute;
-      top: 20px;
-      left: 20px;
-      z-index: 10;
-      background: rgba(2, 24, 89, 0.85);
-      border: 1px solid #03318C;
-      color: #F2F2F2;
-      padding: 24px 28px;
-      border-radius: 8px;
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      min-width: 280px;
-      max-width: 320px;
-      box-shadow: 0 4px 30px rgba(0, 0, 0, 0.4);
+/* ----------------------------------------------------------------
+   Left Panel — Controls, Filters, Stats
+   ---------------------------------------------------------------- */
+#controls-panel {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    background: rgba(2, 24, 89, 0.9);
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid #03318C;
+    color: #F2F2F2;
+    z-index: 10;
+    min-width: 260px;
+    max-width: 320px;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.4);
 }
 
-/* Title */
-.panel-title {
-      font-size: 1.15rem;
-      font-weight: 700;
-      letter-spacing: 0.04em;
-      margin-bottom: 4px;
-      color: #F2F2F2;
+#controls-panel h1 {
+    font-size: 1.15rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    margin-bottom: 4px;
 }
 
+/* Subtitle */
 .panel-subtitle {
-      font-size: 0.72rem;
-      font-weight: 400;
-      opacity: 0.6;
-      margin-bottom: 20px;
-      letter-spacing: 0.02em;
+    font-size: 0.72rem;
+    font-weight: 400;
+    opacity: 0.6;
+    margin-bottom: 14px;
+    letter-spacing: 0.02em;
 }
 
-/* Stat Cards */
+/* ----------------------------------------------------------------
+   Filter buttons
+   ---------------------------------------------------------------- */
+.filters-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0;
+    margin-bottom: 14px;
+}
+
+.filter-btn {
+    background: #0442BF;
+    color: #F2F2F2;
+    border: none;
+    padding: 8px 12px;
+    margin: 5px;
+    cursor: pointer;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    letter-spacing: 0.03em;
+    transition: background 0.2s, color 0.2s;
+}
+
+.filter-btn:hover,
+.filter-btn.active {
+    background: #F2C641;
+    color: #021859;
+    font-weight: bold;
+}
+
+/* ----------------------------------------------------------------
+   Stat Cards
+   ---------------------------------------------------------------- */
 .stats-grid {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      margin-bottom: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 14px;
 }
 
 .stat-card {
-      background: rgba(4, 66, 191, 0.15);
-      border: 1px solid #03318C;
-      border-radius: 6px;
-      padding: 14px 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
+    background: rgba(4, 66, 191, 0.15);
+    border: 1px solid #03318C;
+    border-radius: 6px;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
 }
 
 .stat-label {
-      font-size: 0.7rem;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      opacity: 0.7;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    opacity: 0.7;
 }
 
 .stat-value {
-      font-size: 1.8rem;
-      font-weight: 700;
-      color: #0442BF;
-      line-height: 1;
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: #0442BF;
+    line-height: 1;
 }
 
 /* Anomaly highlight */
 .anomaly-card {
-      border-color: rgba(242, 198, 65, 0.3);
-      background: rgba(242, 198, 65, 0.08);
+    border-color: rgba(242, 198, 65, 0.3);
+    background: rgba(242, 198, 65, 0.08);
 }
 
 .anomaly-value {
-      color: #F2C641;
+    color: #F2C641;
 }
 
 /* Status bar */
 .status-bar {
-      display: flex;
-      align-items: center;
-      gap: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
 
 .status-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: #F2C641;
-      animation: pulse-dot 1.5s ease-in-out infinite;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #F2C641;
+    animation: pulse-dot 1.5s ease-in-out infinite;
 }
 
 .status-text {
-      font-size: 0.68rem;
-      opacity: 0.6;
-      letter-spacing: 0.03em;
+    font-size: 0.68rem;
+    opacity: 0.6;
+    letter-spacing: 0.03em;
 }
 
 @keyframes pulse-dot {
-      0%, 100% { opacity: 1; }
-      50%      { opacity: 0.3; }
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.3; }
+}
+
+/* ----------------------------------------------------------------
+   Right Panel — Anomalies List
+   ---------------------------------------------------------------- */
+#anomalies-panel {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background: rgba(2, 24, 89, 0.9);
+    padding: 15px;
+    border: 1px solid #F2C641;
+    color: #F2F2F2;
+    z-index: 10;
+    width: 300px;
+    max-height: 80vh;
+    overflow-y: auto;
+    border-radius: 8px;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.4);
+}
+
+.anomalies-panel-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #F2C641;
+    margin-bottom: 12px;
+    letter-spacing: 0.04em;
+}
+
+/* Anomaly list items */
+.anomaly-item {
+    background: rgba(4, 66, 191, 0.12);
+    border: 1px solid #03318C;
+    border-left: 3px solid #F2C641;
+    border-radius: 4px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+}
+
+.anomaly-item:hover {
+    background: rgba(242, 198, 65, 0.15);
+    border-color: #F2C641;
+}
+
+.anomaly-item-name {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #F2F2F2;
+    margin-bottom: 4px;
+}
+
+.anomaly-item-details {
+    font-size: 0.68rem;
+    opacity: 0.7;
+    line-height: 1.4;
+}
+
+.anomaly-item-score {
+    color: #F2C641;
+    font-weight: 700;
+}
+
+/* Scrollbar styling for anomalies panel */
+#anomalies-panel::-webkit-scrollbar {
+    width: 6px;
+}
+
+#anomalies-panel::-webkit-scrollbar-track {
+    background: rgba(2, 24, 89, 0.5);
+}
+
+#anomalies-panel::-webkit-scrollbar-thumb {
+    background: #03318C;
+    border-radius: 3px;
+}
+
+#anomalies-panel::-webkit-scrollbar-thumb:hover {
+    background: #0442BF;
 }
