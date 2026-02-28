@@ -45,7 +45,8 @@ ai-orbit-intel-3d/
 │       ├── __init__.py
 │       ├── ingest.py
 │       ├── dynamics.py
-│       └── anomaly.py
+│       ├── anomaly.py
+│       └── api.py
 ├── app/
 │   ├── static/
 │   ├── templates/
@@ -63,7 +64,7 @@ ai-orbit-intel-3d/
 
 ## Status
 
-🚧 **Sprint 4/10 Completed** — FastAPI REST API with Pydantic models.
+🚧 **Sprint 4/10 Completed** — FastAPI REST API with real-time positions & anomaly scores.
 
 ## Author
 
