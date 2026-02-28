@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>AI-Orbit Intelligence 3D</title>
+      <link rel="stylesheet" href="/static/app.css" />
+  </head>
+<body>
+
+      <!-- Globe container -->
+      <div id="globeViz"></div>div>
+
+      <!-- UI Overlay Panel -->
+      <div id="ui-panel">
+                <h1 class="panel-title">AI-Orbit Intelligence 3D</h1>h1>
+                <p class="panel-subtitle">Real-time Satellite Tracking &amp; Anomaly Detection</p>p>
+
+                <div class="stats-grid">
+                              <div class="stat-card">
+                                                <span class="stat-label">Satellites Tracked</span>span>
+                                                <span class="stat-value" id="sat-count">&mdash;</span>span>
+                              </div>div>
+                              <div class="stat-card anomaly-card">
+                                                <span class="stat-label">Anomalies Detected</span>span>
+                                                <span class="stat-value anomaly-value" id="anomaly-count">&mdash;</span>span>
+                              </div>div>
+                </div>div>
+
+                <div class="status-bar">
+                              <span class="status-dot"></span>span>
+                              <span class="status-text" id="status-text">Connecting&hellip;</span>span>
+                </div>div>
+      </div>div>
+
+      <!-- Dependencies & App -->
+      <script src="//unpkg.com/globe.gl"></script>
+      <script src="/static/app.js"></script>
+
+</body>
+</html>html>
+</body></title>
+  </head>
