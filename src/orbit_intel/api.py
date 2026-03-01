@@ -1,15 +1,17 @@
 """FastAPI real-time satellite position & anomaly API.
 
-Loads TLE data at startup (full catalogue), downloads SATCAT for owner/type
-enrichment, runs Isolation Forest anomaly detection, and serves an endpoint
-that computes live lat/lon/altitude positions for every satellite using
-Skyfield SGP4 propagation, enriched with the pre-computed anomaly severity
-score plus owner and object_type metadata.
+Loads TLE data at startup (full catalogue), downloads SATCAT for
+owner/type enrichment, runs Isolation Forest anomaly detection, and
+serves an endpoint that computes live lat/lon/altitude positions for
+every satellite using Skyfield SGP4 propagation, enriched with the
+pre-computed anomaly severity score plus owner and object_type metadata.
 
 Sprint 8: SATCAT enrichment, owner & object_type filters.
+Sprint 9: Added mean_motion & inclination fields for client-side orbital animation.
 """
 
 import logging
+import math
 import time
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -37,12 +39,14 @@ logging.basicConfig(
 
 DEFAULT_DATA_DIR: Path = Path("data")
 SATCAT_URL: str = "https://celestrak.org/satcat/records.php?GROUP=active&FORMAT=json"
+
 ts = load.timescale()
 
 APP_STATE: Dict[str, Any] = {
     "satellites": [],
     "df_anomalies": None,
     "satcat_lookup": {},
+    "tle_extra_lookup": {},  # Sprint 9: mean_motion & inclination from TLE
 }
 
 
@@ -56,8 +60,8 @@ def classify_orbit(altitude_km: float) -> str:
 
 
 def fetch_satcat() -> Dict[int, Dict[str, str]]:
-    """Download SATCAT JSON from CelesTrak and build a lookup dict
-    keyed by NORAD_CAT_ID with owner and object_type values."""
+    """Download SATCAT JSON from CelesTrak and build a lookup dict keyed by
+    NORAD_CAT_ID with owner and object_type values."""
     logger.info("Downloading SATCAT from %s ...", SATCAT_URL)
     lookup: Dict[int, Dict[str, str]] = {}
     try:
@@ -85,6 +89,28 @@ def fetch_satcat() -> Dict[int, Dict[str, str]]:
     return lookup
 
 
+def build_tle_extra_lookup(sats: List[EarthSatellite]) -> Dict[int, Dict[str, float]]:
+    """Sprint 9: Extract mean_motion (revs/day) and inclination (degrees)
+    directly from the SGP4 TLE model for each satellite.
+    These values are embedded in the TLE lines and parsed by Skyfield/sgp4."""
+    lookup: Dict[int, Dict[str, float]] = {}
+    for sat in sats:
+        norad_id = sat.model.satnum
+        try:
+            # sgp4 model stores mean motion in radians/minute -> convert to revs/day
+            # no_kozai (rad/min) * 1440 / (2*pi) = revs/day
+            mean_motion_revs_day = sat.model.no_kozai * 1440.0 / (2.0 * math.pi)
+            inclination_deg = math.degrees(sat.model.inclo)
+        except Exception:
+            mean_motion_revs_day = 0.0
+            inclination_deg = 0.0
+        lookup[norad_id] = {
+            "mean_motion": round(mean_motion_revs_day, 6),
+            "inclination": round(inclination_deg, 4),
+        }
+    return lookup
+
+
 class SatellitePosition(BaseModel):
     """Real-time position of a single satellite."""
 
@@ -104,7 +130,20 @@ class SatellitePosition(BaseModel):
     is_anomaly: bool = Field(..., examples=[False], description="True if anomalous.")
     owner: str = Field("UNKNOWN", examples=["US"], description="Country/owner code.")
     object_type: str = Field(
-        "UNKNOWN", examples=["PAYLOAD"], description="PAYLOAD, DEBRIS, ROCKET BODY, etc."
+        "UNKNOWN",
+        examples=["PAYLOAD"],
+        description="PAYLOAD, DEBRIS, ROCKET BODY, etc.",
+    )
+    # Sprint 9: orbital dynamics for client-side animation
+    mean_motion: float = Field(
+        0.0,
+        examples=[15.49],
+        description="Mean motion in revolutions per day (from TLE).",
+    )
+    inclination: float = Field(
+        0.0,
+        examples=[51.6442],
+        description="Orbital inclination in degrees (from TLE).",
     )
 
 
@@ -120,7 +159,6 @@ class PositionsResponse(BaseModel):
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Load full TLE catalogue, download SATCAT, and train Isolation Forest at startup."""
     logger.info("Initializing Space Data & AI Engine...")
-
     sats: List[EarthSatellite] = load_tle_objects(data_dir=DEFAULT_DATA_DIR)
     logger.info("Loaded full catalogue: %d satellites", len(sats))
     APP_STATE["satellites"] = sats
@@ -128,30 +166,32 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Sprint 8: download SATCAT for owner & object type enrichment
     APP_STATE["satcat_lookup"] = fetch_satcat()
 
+    # Sprint 9: build TLE extra lookup for mean_motion & inclination
+    APP_STATE["tle_extra_lookup"] = build_tle_extra_lookup(sats)
+    logger.info("TLE extra lookup built: %d entries", len(APP_STATE["tle_extra_lookup"]))
+
     df: pd.DataFrame = extract_features(sats)
     detector = OrbitalAnomalyDetector()
     df_anomalies: pd.DataFrame = detector.fit_predict(df)
     APP_STATE["df_anomalies"] = df_anomalies
-
     logger.info(
         "Startup complete: %d satellites, %d anomalies, SATCAT entries: %d",
         len(sats),
         int(df_anomalies["is_anomaly"].sum()),
         len(APP_STATE["satcat_lookup"]),
     )
-
     yield
-
     APP_STATE["satellites"] = []
     APP_STATE["df_anomalies"] = None
     APP_STATE["satcat_lookup"] = {}
+    APP_STATE["tle_extra_lookup"] = {}
     logger.info("Shutdown complete.")
 
 
 app = FastAPI(
     title="AI-Orbit Intelligence 3D API",
     description="Real-time satellite tracking with Isolation Forest anomaly scores.",
-    version="0.8.0",
+    version="0.9.0",
     lifespan=lifespan,
 )
 
@@ -193,7 +233,8 @@ async def get_positions(
         description="Filter by object type (e.g. PAYLOAD, DEBRIS, ROCKET BODY, TBA, UNKNOWN).",
     ),
 ) -> PositionsResponse:
-    """Propagate every satellite, classify orbit, enrich with SATCAT, apply filters.
+    """Propagate every satellite, classify orbit, enrich with SATCAT,
+    apply filters.
 
     When filter_type is TOP10, returns only the 10 satellites with the
     highest anomaly_score (sorted descending).
@@ -201,6 +242,7 @@ async def get_positions(
     sats: List[EarthSatellite] = APP_STATE["satellites"]
     df_anom: pd.DataFrame = APP_STATE["df_anomalies"]
     satcat: Dict[int, Dict[str, str]] = APP_STATE.get("satcat_lookup", {})
+    tle_extra: Dict[int, Dict[str, float]] = APP_STATE.get("tle_extra_lookup", {})
 
     if not sats or df_anom is None:
         raise HTTPException(
@@ -242,6 +284,11 @@ async def get_positions(
         sat_owner = sat_meta.get("owner", "UNKNOWN")
         sat_object_type = sat_meta.get("object_type", "UNKNOWN")
 
+        # Sprint 9: TLE extra data (mean_motion & inclination)
+        tle_data = tle_extra.get(norad_id, {})
+        sat_mean_motion = tle_data.get("mean_motion", 0.0)
+        sat_inclination = tle_data.get("inclination", 0.0)
+
         # Standard orbit/anomaly filters
         if filter_upper == "LEO" and orbit_type != "LEO":
             continue
@@ -270,6 +317,8 @@ async def get_positions(
                 is_anomaly=flagged,
                 owner=sat_owner,
                 object_type=sat_object_type,
+                mean_motion=sat_mean_motion,
+                inclination=sat_inclination,
             )
         )
 
