@@ -1,11 +1,12 @@
 """FastAPI real-time satellite position & anomaly API.
 
-Loads TLE data at startup (full catalogue), runs Isolation Forest
-anomaly detection, and serves an endpoint that computes live
-lat/lon/altitude positions for every satellite using Skyfield SGP4
-propagation, enriched with the pre-computed anomaly severity score.
+Loads TLE data at startup (full catalogue), downloads SATCAT for owner/type
+enrichment, runs Isolation Forest anomaly detection, and serves an endpoint
+that computes live lat/lon/altitude positions for every satellite using
+Skyfield SGP4 propagation, enriched with the pre-computed anomaly severity
+score plus owner and object_type metadata.
 
-Sprint 7: TOP10 filter, toggle vectors support, wiki enrichment, active selection.
+Sprint 8: SATCAT enrichment, owner & object_type filters.
 """
 
 import logging
@@ -15,6 +16,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+import httpx
 import pandas as pd
 import uvicorn
 from fastapi import FastAPI, HTTPException, Query
@@ -34,11 +36,13 @@ logging.basicConfig(
 )
 
 DEFAULT_DATA_DIR: Path = Path("data")
+SATCAT_URL: str = "https://celestrak.org/satcat/records.php?GROUP=active&FORMAT=json"
 ts = load.timescale()
 
 APP_STATE: Dict[str, Any] = {
     "satellites": [],
     "df_anomalies": None,
+    "satcat_lookup": {},
 }
 
 
@@ -49,6 +53,36 @@ def classify_orbit(altitude_km: float) -> str:
     if altitude_km > 35000:
         return "GEO"
     return "MEO"
+
+
+def fetch_satcat() -> Dict[int, Dict[str, str]]:
+    """Download SATCAT JSON from CelesTrak and build a lookup dict
+    keyed by NORAD_CAT_ID with owner and object_type values."""
+    logger.info("Downloading SATCAT from %s ...", SATCAT_URL)
+    lookup: Dict[int, Dict[str, str]] = {}
+    try:
+        with httpx.Client(timeout=30.0) as client:
+            resp = client.get(SATCAT_URL)
+            resp.raise_for_status()
+            records = resp.json()
+        for rec in records:
+            norad_id = rec.get("NORAD_CAT_ID")
+            if norad_id is None:
+                continue
+            try:
+                norad_id = int(norad_id)
+            except (ValueError, TypeError):
+                continue
+            owner = rec.get("OWNER", "UNKNOWN") or "UNKNOWN"
+            obj_type = rec.get("OBJECT_TYPE", "UNKNOWN") or "UNKNOWN"
+            lookup[norad_id] = {
+                "owner": owner.strip(),
+                "object_type": obj_type.strip(),
+            }
+        logger.info("SATCAT loaded: %d records.", len(lookup))
+    except Exception as exc:
+        logger.error("Failed to download SATCAT: %s", exc)
+    return lookup
 
 
 class SatellitePosition(BaseModel):
@@ -68,6 +102,10 @@ class SatellitePosition(BaseModel):
         description="0.0 = normal, 1.0 = highly anomalous.",
     )
     is_anomaly: bool = Field(..., examples=[False], description="True if anomalous.")
+    owner: str = Field("UNKNOWN", examples=["US"], description="Country/owner code.")
+    object_type: str = Field(
+        "UNKNOWN", examples=["PAYLOAD"], description="PAYLOAD, DEBRIS, ROCKET BODY, etc."
+    )
 
 
 class PositionsResponse(BaseModel):
@@ -80,12 +118,15 @@ class PositionsResponse(BaseModel):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    """Load full TLE catalogue and train Isolation Forest at startup."""
+    """Load full TLE catalogue, download SATCAT, and train Isolation Forest at startup."""
     logger.info("Initializing Space Data & AI Engine...")
 
     sats: List[EarthSatellite] = load_tle_objects(data_dir=DEFAULT_DATA_DIR)
     logger.info("Loaded full catalogue: %d satellites", len(sats))
     APP_STATE["satellites"] = sats
+
+    # Sprint 8: download SATCAT for owner & object type enrichment
+    APP_STATE["satcat_lookup"] = fetch_satcat()
 
     df: pd.DataFrame = extract_features(sats)
     detector = OrbitalAnomalyDetector()
@@ -93,22 +134,24 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     APP_STATE["df_anomalies"] = df_anomalies
 
     logger.info(
-        "Startup complete: %d satellites, %d anomalies",
+        "Startup complete: %d satellites, %d anomalies, SATCAT entries: %d",
         len(sats),
         int(df_anomalies["is_anomaly"].sum()),
+        len(APP_STATE["satcat_lookup"]),
     )
 
     yield
 
     APP_STATE["satellites"] = []
     APP_STATE["df_anomalies"] = None
+    APP_STATE["satcat_lookup"] = {}
     logger.info("Shutdown complete.")
 
 
 app = FastAPI(
     title="AI-Orbit Intelligence 3D API",
     description="Real-time satellite tracking with Isolation Forest anomaly scores.",
-    version="0.7.0",
+    version="0.8.0",
     lifespan=lifespan,
 )
 
@@ -141,14 +184,23 @@ async def get_positions(
         "ALL",
         description="Filter: ALL, LEO, MEO, GEO, ANOMALIES, or TOP10.",
     ),
+    owner: Optional[str] = Query(
+        default=None,
+        description="Filter by country/owner code (e.g. US, PRC, CIS, FR, UK, ESA, IND, JPN).",
+    ),
+    object_type: Optional[str] = Query(
+        default=None,
+        description="Filter by object type (e.g. PAYLOAD, DEBRIS, ROCKET BODY, TBA, UNKNOWN).",
+    ),
 ) -> PositionsResponse:
-    """Propagate every satellite, classify orbit, apply filter.
+    """Propagate every satellite, classify orbit, enrich with SATCAT, apply filters.
 
     When filter_type is TOP10, returns only the 10 satellites with the
     highest anomaly_score (sorted descending).
     """
     sats: List[EarthSatellite] = APP_STATE["satellites"]
     df_anom: pd.DataFrame = APP_STATE["df_anomalies"]
+    satcat: Dict[int, Dict[str, str]] = APP_STATE.get("satcat_lookup", {})
 
     if not sats or df_anom is None:
         raise HTTPException(
@@ -161,7 +213,6 @@ async def get_positions(
     )
 
     filter_upper: str = filter_type.upper()
-
     t_now = ts.now()
     positions: List[SatellitePosition] = []
 
@@ -186,6 +237,11 @@ async def get_positions(
             score = 0.0
             flagged = False
 
+        # SATCAT enrichment (Sprint 8)
+        sat_meta = satcat.get(norad_id, {})
+        sat_owner = sat_meta.get("owner", "UNKNOWN")
+        sat_object_type = sat_meta.get("object_type", "UNKNOWN")
+
         # Standard orbit/anomaly filters
         if filter_upper == "LEO" and orbit_type != "LEO":
             continue
@@ -194,6 +250,12 @@ async def get_positions(
         if filter_upper == "GEO" and orbit_type != "GEO":
             continue
         if filter_upper == "ANOMALIES" and not flagged:
+            continue
+
+        # Strategic OSINT filters (Sprint 8)
+        if owner and sat_owner != owner.strip():
+            continue
+        if object_type and sat_object_type.upper() != object_type.strip().upper():
             continue
 
         positions.append(
@@ -206,6 +268,8 @@ async def get_positions(
                 orbit_type=orbit_type,
                 anomaly_score=round(score, 4),
                 is_anomaly=flagged,
+                owner=sat_owner,
+                object_type=sat_object_type,
             )
         )
 
