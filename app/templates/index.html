@@ -1,11 +1,11 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-      <meta charset="UTF-8" />
-      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-      <title>AI-Orbit Intelligence 3D</title>
-      <link rel="stylesheet" href="/static/app.css" />
-  </head>
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI-Orbit Intelligence 3D</title>
+    <link rel="stylesheet" href="/static/app.css" />
+</head>
 <body>
 
     <!-- 3D Globe canvas -->
@@ -13,56 +13,83 @@
 
     <!-- Left panel: controls, filters, stats -->
     <div id="controls-panel">
-          <h1 style="color: #F2F2F2;">AI-Orbit Intel 3D</h1>
-          <p class="panel-subtitle">Real-time Tracking &amp; Anomaly Detection</p>
+        <h1 style="color: #F2F2F2;">AI-Orbit Intel 3D</h1>
+        <p class="panel-subtitle">Real-time Tracking &amp; Anomaly Detection</p>
 
-          <div class="filters-group">
-                  <button class="filter-btn active" data-filter="ALL">All</button>
-                  <button class="filter-btn" data-filter="LEO">LEO</button>
-                  <button class="filter-btn" data-filter="MEO">MEO</button>
-                  <button class="filter-btn" data-filter="GEO">GEO</button>
-                  <button class="filter-btn" data-filter="ANOMALIES">Anomalies Only</button>
-                  <button class="filter-btn" data-filter="TOP10">Top 10 Anomalies</button>
-          </div>
+        <div class="filters-group">
+            <button class="filter-btn active" data-filter="ALL">All</button>
+            <button class="filter-btn" data-filter="LEO">LEO</button>
+            <button class="filter-btn" data-filter="MEO">MEO</button>
+            <button class="filter-btn" data-filter="GEO">GEO</button>
+            <button class="filter-btn" data-filter="ANOMALIES">Anomalies Only</button>
+            <button class="filter-btn" data-filter="TOP10">Top 10 Anomalies</button>
+        </div>
 
-          <div class="stats-grid">
-                  <div class="stat-card">
-                            <span class="stat-label">Satellites Tracked</span>
-                            <span class="stat-value" id="total-sats">&mdash;</span>
-                  </div>
-                  <div class="stat-card anomaly-card">
-                            <span class="stat-label">Anomalies Detected</span>
-                            <span class="stat-value anomaly-value" id="anomalies-count">&mdash;</span>
-                  </div>
-          </div>
+        <div class="stats-grid">
+            <div class="stat-card">
+                <span class="stat-label">Satellites Tracked</span>
+                <span class="stat-value" id="total-sats">&mdash;</span>
+            </div>
+            <div class="stat-card anomaly-card">
+                <span class="stat-label">Anomalies Detected</span>
+                <span class="stat-value anomaly-value" id="anomalies-count">&mdash;</span>
+            </div>
+        </div>
 
-          <div class="status-bar">
-                  <span class="status-dot"></span>
-                  <span class="status-text" id="status-text">Connecting&hellip;</span>
-          </div>
+        <div class="status-bar">
+            <span class="status-dot"></span>
+            <span class="status-text" id="status-text">Connecting&hellip;</span>
+        </div>
 
-          <!-- Toggle Vectors button -->
-          <button id="toggle-vectors-btn" class="filter-btn" style="margin-top: 15px; border: 1px solid #F2C641;">Toggle Vectors (Lines)</button>
+        <!-- Toggle Vectors button -->
+        <button id="toggle-vectors-btn" class="filter-btn" style="margin-top: 15px; border: 1px solid #F2C641;">Toggle Vectors (Lines)</button>
 
-          <!-- Footer Portfolio -->
-          <div style="margin-top: 25px; padding-top: 15px; border-top: 1px solid #03318C; font-size: 0.85em; text-align: center;">
-                  Created by <br/>
-                  <strong style="color: #F2C641; font-size: 1.1em;">Thierry Maesen</strong><br/>
-                  <a href="https://github.com/thierrymaesen" target="_blank" style="color: #F2F2F2; text-decoration: none; display: inline-block; margin-top: 5px;">&#9733; View on GitHub</a>
-          </div>
+        <!-- Sprint 8: Strategic OSINT Filters -->
+        <div style="margin-top: 18px; padding-top: 12px; border-top: 1px solid #03318C;">
+            <p style="font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.7; margin-bottom: 8px;">Strategic Filters</p>
+
+            <select id="filter-owner" class="filter-btn" style="width: 100%; background: #021859; color: #F2C641; border: 1px solid #03318C; padding: 8px 10px; font-size: 0.75rem; cursor: pointer; appearance: auto;">
+                <option value="">Owner: All</option>
+                <option value="US">US (USA)</option>
+                <option value="PRC">PRC (China)</option>
+                <option value="CIS">CIS (Russia)</option>
+                <option value="UK">UK</option>
+                <option value="FR">FR (France)</option>
+                <option value="ESA">ESA</option>
+                <option value="IND">IND (India)</option>
+                <option value="JPN">JPN (Japan)</option>
+                <option value="UNKNOWN">UNKNOWN</option>
+            </select>
+
+            <select id="filter-type" class="filter-btn" style="width: 100%; margin-top: 10px; background: #021859; color: #F2C641; border: 1px solid #03318C; padding: 8px 10px; font-size: 0.75rem; cursor: pointer; appearance: auto;">
+                <option value="">Type: All</option>
+                <option value="PAYLOAD">PAYLOAD (Active Satellites)</option>
+                <option value="DEBRIS">DEBRIS</option>
+                <option value="ROCKET BODY">ROCKET BODY</option>
+                <option value="UNKNOWN">UNKNOWN</option>
+            </select>
+        </div>
+
+        <!-- Footer Portfolio -->
+        <div style="margin-top: 25px; padding-top: 15px; border-top: 1px solid #03318C; font-size: 0.85em; text-align: center;">
+            Created by <br/>
+            <strong style="color: #F2C641; font-size: 1.1em;">Thierry Maesen</strong><br/>
+            <a href="https://github.com/thierrymaesen" target="_blank" style="color: #F2F2F2; text-decoration: none; display: inline-block; margin-top: 5px;">&#9733; View on GitHub</a>
+        </div>
     </div>
 
     <!-- Right panel: anomalies list -->
     <div id="anomalies-panel">
-          <h2 class="anomalies-panel-title">Top Anomalies</h2>
-          <div id="anomalies-list"></div>
+        <h2 class="anomalies-panel-title">Top Anomalies</h2>
+        <div id="anomalies-list"></div>
     </div>
 
     <!-- Wikipedia info modal -->
     <div id="wiki-modal" style="display: none; position: absolute; bottom: 20px; right: 20px; width: 320px; background: rgba(2, 24, 89, 0.95); border: 2px solid #F2C641; padding: 15px; color: #F2F2F2; z-index: 100; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.5);">
-          <span id="wiki-close" style="float: right; cursor: pointer; color: #F2C641; font-weight: bold; font-size: 1.2em;">X</span>
-          <h3 id="wiki-title" style="margin-top: 0; color: #F2C641; font-size: 1.1em;"></h3>
-          <p id="wiki-content" style="font-size: 0.9em; line-height: 1.4; max-height: 200px; overflow-y: auto;"></p>
+        <span id="wiki-close" style="float: right; cursor: pointer; color: #F2C641; font-weight: bold; font-size: 1.2em;">X</span>
+        <h3 id="wiki-title" style="margin-top: 0; color: #F2C641; font-size: 1.1em;"></h3>
+        <p id="wiki-owner-type" style="font-size: 0.78em; opacity: 0.8; margin: 4px 0 8px 0;"></p>
+        <p id="wiki-content" style="font-size: 0.9em; line-height: 1.4; max-height: 200px; overflow-y: auto;"></p>
     </div>
 
     <script src="//unpkg.com/globe.gl"></script>
