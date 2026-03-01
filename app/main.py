@@ -1,13 +1,15 @@
-"""FastAPI application - AI-Orbit Intelligence 3D (Sprint 9 Consolidated).
+"""FastAPI application - AI-Orbit Intelligence 3D (Sprint 10 - Production).
 
 Unified backend with lifespan-based automatic pipeline.
 Sprint 8: SATCAT enrichment (owner, object_type), strategic OSINT filters.
 Sprint 9: Added mean_motion & inclination to SatellitePosition for client-side orbital animation.
+Sprint 10: Cloud-ready launcher, Dockerfile, CI/CD, tests.
 No manual POST /api/v1/analyse needed.
 """
 
 import logging
 import math
+import os
 import time
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -36,7 +38,6 @@ logging.basicConfig(
 
 DEFAULT_DATA_DIR: Path = Path("data")
 BASE_DIR: Path = Path(__file__).resolve().parent
-
 ts = load.timescale()
 
 SATCAT_URL: str = "https://celestrak.org/satcat/records.php?GROUP=active&FORMAT=json"
@@ -63,8 +64,8 @@ def classify_orbit(alt_km: float) -> str:
 # Sprint 9: Extract mean_motion & inclination from TLE/SGP4 model
 # ----------------------------------------------------------------
 def build_tle_extra_lookup(sats: List[EarthSatellite]) -> Dict[int, Dict[str, float]]:
-    """Extract mean_motion (revs/day) and inclination (degrees)
-    directly from the SGP4 TLE model for each satellite."""
+    """Extract mean_motion (revs/day) and inclination (degrees) directly
+    from the SGP4 TLE model for each satellite."""
     lookup: Dict[int, Dict[str, float]] = {}
     for sat in sats:
         norad_id = sat.model.satnum
@@ -86,7 +87,7 @@ def build_tle_extra_lookup(sats: List[EarthSatellite]) -> Dict[int, Dict[str, fl
 # ----------------------------------------------------------------
 class HealthResponse(BaseModel):
     status: str = Field(..., examples=["ok"])
-    version: str = Field(..., examples=["0.9.0"])
+    version: str = Field(..., examples=["1.0.0"])
     satellites_loaded: int = Field(..., examples=[14000])
     anomalies_detected: int = Field(..., examples=[700])
 
@@ -141,8 +142,8 @@ class IngestResponse(BaseModel):
 # SATCAT fetcher (Sprint 8)
 # ----------------------------------------------------------------
 def fetch_satcat() -> Dict[int, Dict[str, str]]:
-    """Download SATCAT JSON from CelesTrak and build a lookup dict keyed by
-    NORAD_CAT_ID with owner and object_type values."""
+    """Download SATCAT JSON from CelesTrak and build a lookup dict keyed
+    by NORAD_CAT_ID with owner and object_type values."""
     logger.info("Downloading SATCAT from %s ...", SATCAT_URL)
     lookup: Dict[int, Dict[str, str]] = {}
     try:
@@ -212,17 +213,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 is_anomaly=bool(row["is_anomaly"]),
                 anomaly_score=round(float(row["anomaly_score"]), 4),
             ))
-
         _state["last_report"] = AnomalyReport(
             total_satellites=len(df_anomalies),
             total_anomalies=n_anomalies,
             contamination_rate=0.05,
             satellites=records,
         )
-
         logger.info(
             "READY: %d satellites, %d anomalies, SATCAT entries: %d.",
-            len(sats), n_anomalies, len(_state["satcat_lookup"]),
+            len(sats),
+            n_anomalies,
+            len(_state["satcat_lookup"]),
         )
     except FileNotFoundError as exc:
         logger.critical("TLE file not found: %s", exc)
@@ -243,8 +244,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 # ----------------------------------------------------------------
 app = FastAPI(
     title="AI-Orbit Intelligence 3D",
-    description="Real-time orbital anomaly detection API. Sprint 9.",
-    version="0.9.0",
+    description="Real-time orbital anomaly detection API. Sprint 10 - Production.",
+    version="1.0.0",
     lifespan=lifespan,
 )
 
@@ -274,7 +275,7 @@ async def health() -> HealthResponse:
     n_anomalies = int(df["is_anomaly"].sum()) if df is not None else 0
     return HealthResponse(
         status="ok",
-        version="0.9.0",
+        version="1.0.0",
         satellites_loaded=len(_state.get("satellites_tle", [])),
         anomalies_detected=n_anomalies,
     )
@@ -309,8 +310,8 @@ async def get_positions(
 
     filter_upper = filter_type.upper()
     t_now = ts.now()
-    positions: List[SatellitePosition] = []
 
+    positions: List[SatellitePosition] = []
     for sat in satellites:
         try:
             geocentric = sat.at(t_now)
@@ -401,8 +402,7 @@ async def ingest_tle(
         )
     except RuntimeError as exc:
         raise HTTPException(
-            status_code=502,
-            detail=f"TLE download failed: {exc}"
+            status_code=502, detail=f"TLE download failed: {exc}"
         ) from exc
 
 
@@ -418,8 +418,7 @@ async def analyse(
         df = extract_features(satellites)
         if df.empty:
             raise HTTPException(
-                status_code=422,
-                detail="No satellites could be parsed."
+                status_code=422, detail="No satellites could be parsed."
             )
 
         detector = OrbitalAnomalyDetector(contamination=contamination)
@@ -448,11 +447,9 @@ async def analyse(
         )
         _state["last_report"] = report
         return report
-
     except FileNotFoundError as exc:
         raise HTTPException(
-            status_code=404,
-            detail="TLE data not found."
+            status_code=404, detail="TLE data not found."
         ) from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -470,13 +467,12 @@ async def get_anomalies(
     report = _state.get("last_report")
     if report is None:
         raise HTTPException(
-            status_code=404,
-            detail="No analysis results available."
+            status_code=404, detail="No analysis results available."
         )
     results = sorted(
         report.satellites,
         key=lambda s: s.anomaly_score,
-        reverse=True
+        reverse=True,
     )
     if min_score is not None:
         results = [s for s in results if s.anomaly_score >= min_score]
@@ -492,13 +488,21 @@ async def get_satellite(norad_id: int) -> SatelliteAnomaly:
     report = _state.get("last_report")
     if report is None:
         raise HTTPException(
-            status_code=404,
-            detail="No analysis results available."
+            status_code=404, detail="No analysis results available."
         )
     for sat in report.satellites:
         if sat.norad_id == norad_id:
             return sat
     raise HTTPException(
-        status_code=404,
-        detail=f"Satellite {norad_id} not found."
+        status_code=404, detail=f"Satellite {norad_id} not found."
     )
+
+
+# ----------------------------------------------------------------
+# Cloud-ready launcher (Sprint 10)
+# ----------------------------------------------------------------
+if __name__ == "__main__":
+    import uvicorn
+
+    port = int(os.environ.get("PORT", 7860))
+    uvicorn.run("app.main:app", host="0.0.0.0", port=port, reload=False)
