@@ -1,15 +1,16 @@
 """Tests for AI-Orbit Intelligence 3D API.
 
-Sprint 10: Automated test suite using pytest + FastAPI TestClient.
+Sprint 10: Automated test suite using pytest + httpx ASGITransport.
 Tests run without live TLE data (satellites may not be loaded).
 """
 
 import pytest
-from fastapi.testclient import TestClient
+import httpx
 
 from app.main import app
 
-client = TestClient(app)
+transport = httpx.ASGITransport(app=app)
+client = httpx.Client(transport=transport, base_url="http://testserver")
 
 
 # ----------------------------------------------------------------
