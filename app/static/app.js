@@ -12,7 +12,7 @@
 // -------------------------------------------------------------------
 var API_URL  = "/api/positions";
 var REFRESH_MS = 5000;
-var COLOR_NORMAL   = "#0442BF";
+var COLOR_NORMAL   = "#4DA6FF";
 var COLOR_ANOMALY  = "#F2C641";
 var COLOR_SELECTED = "#FF0000";
 var COLOR_RING     = "rgba(242, 198, 65, 0.35)";
@@ -62,11 +62,11 @@ var myGlobe = Globe()(document.getElementById("globeViz"))
   .pointLat("lat")
   .pointLng("lng")
   .pointAltitude(function(d) {
-         return showVectors ? visualAltitude(d.altitude) : 0;
+         return showVectors ? visualAltitude(d.altitude) : 0.01;
   })
   .pointRadius(function(d) {
-         if (d.norad_id === selectedSatelliteId) return 0.08;
-         return d.is_anomaly ? 0.12 : 0.04;
+         if (d.norad_id === selectedSatelliteId) return 0.12;
+         return d.is_anomaly ? 0.15 : 0.1;
   })
   .pointColor(function(d) {
          if (d.norad_id === selectedSatelliteId) return COLOR_SELECTED;
@@ -113,7 +113,7 @@ if (toggleVectorsBtn) {
             toggleVectorsBtn.style.background = showVectors ? "rgba(242,198,65,0.2)" : "";
             // Update point altitude to show/hide the vertical lines
                                            myGlobe.pointAltitude(function(d) {
-                                                    return showVectors ? visualAltitude(d.altitude) : 0;
+                                                    return showVectors ? visualAltitude(d.altitude) : 0.01;
                                            });
      });
 }
