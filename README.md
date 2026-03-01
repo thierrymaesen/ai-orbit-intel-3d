@@ -1,75 +1,59 @@
-# 🌍 AI-Orbit Intelligence 3D
+---
+title: Ai Orbit Intel 3d
+emoji: 🌍
+colorFrom: blue
+colorTo: yellow
+sdk: docker
+pinned: false
+license: mit
+---
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
+# 🌍 AI Orbit Intel 3D
 
-## Description
+[![CI/CD Pipeline](https://github.com/thierrymaesen/ai-orbit-intel-3d/actions/workflows/ci.yml/badge.svg)](https://github.com/thierrymaesen/ai-orbit-intel-3d/actions)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=flat&logo=fastapi)](https://fastapi.tiangolo.com)
+[![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker)](https://www.docker.com/)
+[![Hugging Face](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Live_Demo-yellow)](https://huggingface.co/spaces/thierrymaesen/ai-orbit-intel-3d)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 
-Real-time 3D Satellite Visualization & Orbital Anomaly Detection using AI (Isolation Forest) and CelesTrak TLE data.
+AI Orbit Intel 3D is an advanced open-source Space OSINT (Open-Source Intelligence) platform. It provides real-time 3D visualization of over 14,000 active satellites and space debris, enriched with Machine Learning to automatically detect orbital anomalies.
 
-This project demonstrates senior-level software engineering skilhls combining orbital mechanics (SGP4 via Skyfield), unsupervised Machine Learning (Isolation Forest via scikit-learn), and interactive 3D visualization — all built with a clean, production-grade Python architecture.
+---
 
-## Data Disclaimer
+## 🚀 Live Demo
 
-> Orbital data provided by [CelesTrak](https://celestrak.org/). Used for educational and portfolio demonstration purposes.
+Try the application here: [AI Orbit Intel 3D on Hugging Face Spaces](https://huggingface.co/spaces/thierrymaesen/ai-orbit-intel-3d)
 
-## Tech Stack
+---
 
-- **Backend**: Python 3.10+, FastAPI, Pydantic
-- **Orbital Mechanics**: Skyfield (SGP4 propagation)
-- **Machine Learning**: scikit-learn (Isolation Forest)
-- **Data Processing**: Pandas
-- **Frontend**: Jinja2 + Three.js (3D visualization)
-- **Scheduling**: schedule (periodic TLE ingestion)
+## ✨ Key Features
 
-## Installation
+*   🛰️ Massive 3D Rendering: Smooth visualization of 14,000+ space objects using Globe.gl.
 
-```bash
-# Clone the repository
-git clone https://github.com/thierrymaesen/ai-orbit-intel-3d.git
-cd ai-orbit-intel-3d
+*   🧠 AI Anomaly Detection: Automated Machine Learning pipeline Isolation Forest via Scikit-Learn) that runs on server startup to flag satellites with abnormal orbital behaviors (eccentricity, mean motion, etc.).
 
-# Install dependencies with Poetry
-poetry install
+*   🌍 Strategic OSINT Filters: Filter the global satellite catalog by Owner/Country (USA, China, Russia, France, etc.) and Object Type (Payload, Debris, Rocket Body).
 
-# Run the application
-poetry run uvicorn app.main:app --reload
-```
+*   ⏱️ Real-Time Orbital Simulation: Client-side mathematical calculation to animate satellites orbiting the Earth based on their real mean_motion and inclination.
 
-## Project Structure
+*   📚 Wikipedia Enrichment: Click on any satellite to dynamically fetch its historical and technical background via the Wikimedia REST API.
 
-```
-ai-orbit-intel-3d/
-├── src/
-│   └── orbit_intel/
-│       ├── __init__.py
-│       ├── ingest.py
-│       ├── dynamics.py
-│       ├── anomaly.py
-│       └── api.py
-├── app/
-│   ├── static/
-│   ├── templates/
-│   └── main.py
-├── tests/
-├── data/
-├── .github/
-│   └── workflows/
-├── pyproject.toml
-├── .gitignore
-├── .python-version
-├── LICENSE
-└── README.md
-```
+*   🎯 Advanced UI/UX: "Top 10 Anomalies" quick-filter, Active Selection highlighting, and a "Hedgehog" mode (Vector lines) mapping altitude distances to Earth.
 
-## Status
+---
 
-🚧 **Sprint 4/10 Completed** — FastAPI REST API with real-time positions & anomaly scores.
+## 🏗️ Architecture & Tech Stack
 
-## Author
+Backend: Python 3.10, FastAPI, Scikit-Learn (Unsupervised ML), Pandas, CelesTrak API.  
+Frontend: HTML5, Vanilla JS, CSS3, Globe.gl (Three.js WebGL).  
+DevOps & CI/CD: Pytest, GitHub Actions, Docker, Hugging Face Spaces.
 
-**Thierry Maesen** — [GitHub](https://github.com/thierrymaesen)
+---
 
-## License
+## 👨‍💻 Author
 
-This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
+Thierry Maesen
+
+*   GitHub: [@thierrymaesen](https://github.com/thierrymaesen)
+*   Location: Seraing, Wallonia, BE
