@@ -1,11 +1,13 @@
-"""FastAPI application - AI-Orbit Intelligence 3D (Sprint 8 Consolidated).
+"""FastAPI application - AI-Orbit Intelligence 3D (Sprint 9 Consolidated).
 
 Unified backend with lifespan-based automatic pipeline.
 Sprint 8: SATCAT enrichment (owner, object_type), strategic OSINT filters.
+Sprint 9: Added mean_motion & inclination to SatellitePosition for client-side orbital animation.
 No manual POST /api/v1/analyse needed.
 """
 
 import logging
+import math
 import time
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -34,6 +36,7 @@ logging.basicConfig(
 
 DEFAULT_DATA_DIR: Path = Path("data")
 BASE_DIR: Path = Path(__file__).resolve().parent
+
 ts = load.timescale()
 
 SATCAT_URL: str = "https://celestrak.org/satcat/records.php?GROUP=active&FORMAT=json"
@@ -44,6 +47,7 @@ _state: Dict[str, Any] = {
     "detector": None,
     "last_report": None,
     "satcat_lookup": {},
+    "tle_extra_lookup": {},  # Sprint 9: mean_motion & inclination from TLE
 }
 
 
@@ -56,12 +60,33 @@ def classify_orbit(alt_km: float) -> str:
 
 
 # ----------------------------------------------------------------
+# Sprint 9: Extract mean_motion & inclination from TLE/SGP4 model
+# ----------------------------------------------------------------
+def build_tle_extra_lookup(sats: List[EarthSatellite]) -> Dict[int, Dict[str, float]]:
+    """Extract mean_motion (revs/day) and inclination (degrees)
+    directly from the SGP4 TLE model for each satellite."""
+    lookup: Dict[int, Dict[str, float]] = {}
+    for sat in sats:
+        norad_id = sat.model.satnum
+        try:
+            mean_motion_revs_day = sat.model.no_kozai * 1440.0 / (2.0 * math.pi)
+            inclination_deg = math.degrees(sat.model.inclo)
+        except Exception:
+            mean_motion_revs_day = 0.0
+            inclination_deg = 0.0
+        lookup[norad_id] = {
+            "mean_motion": round(mean_motion_revs_day, 6),
+            "inclination": round(inclination_deg, 4),
+        }
+    return lookup
+
+
+# ----------------------------------------------------------------
 # Pydantic models
 # ----------------------------------------------------------------
-
 class HealthResponse(BaseModel):
     status: str = Field(..., examples=["ok"])
-    version: str = Field(..., examples=["0.8.0"])
+    version: str = Field(..., examples=["0.9.0"])
     satellites_loaded: int = Field(..., examples=[14000])
     anomalies_detected: int = Field(..., examples=[700])
 
@@ -77,6 +102,9 @@ class SatellitePosition(BaseModel):
     is_anomaly: bool = Field(..., examples=[False])
     owner: str = Field("UNKNOWN", examples=["US"])
     object_type: str = Field("UNKNOWN", examples=["PAYLOAD"])
+    # Sprint 9: orbital dynamics for client-side animation
+    mean_motion: float = Field(0.0, examples=[15.49], description="Mean motion in revolutions per day (from TLE).")
+    inclination: float = Field(0.0, examples=[51.6442], description="Orbital inclination in degrees (from TLE).")
 
 
 class PositionsResponse(BaseModel):
@@ -112,10 +140,9 @@ class IngestResponse(BaseModel):
 # ----------------------------------------------------------------
 # SATCAT fetcher (Sprint 8)
 # ----------------------------------------------------------------
-
 def fetch_satcat() -> Dict[int, Dict[str, str]]:
-    """Download SATCAT JSON from CelesTrak and build a lookup dict
-    keyed by NORAD_CAT_ID with owner and object_type values."""
+    """Download SATCAT JSON from CelesTrak and build a lookup dict keyed by
+    NORAD_CAT_ID with owner and object_type values."""
     logger.info("Downloading SATCAT from %s ...", SATCAT_URL)
     lookup: Dict[int, Dict[str, str]] = {}
     try:
@@ -146,24 +173,27 @@ def fetch_satcat() -> Dict[int, Dict[str, str]]:
 # ----------------------------------------------------------------
 # Lifespan
 # ----------------------------------------------------------------
-
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("AI-Orbit Intelligence 3D - Initializing...")
-
     try:
-        logger.info("[1/4] Loading TLE satellite catalogue...")
+        logger.info("[1/5] Loading TLE satellite catalogue...")
         sats = load_tle_objects(data_dir=DEFAULT_DATA_DIR)
         logger.info("Loaded %d satellites.", len(sats))
         _state["satellites_tle"] = sats
 
-        logger.info("[2/4] Downloading SATCAT (owner & object type)...")
+        logger.info("[2/5] Downloading SATCAT (owner & object type)...")
         _state["satcat_lookup"] = fetch_satcat()
 
-        logger.info("[3/4] Extracting orbital features...")
+        # Sprint 9: build TLE extra lookup for mean_motion & inclination
+        logger.info("[3/5] Building TLE extra lookup (mean_motion & inclination)...")
+        _state["tle_extra_lookup"] = build_tle_extra_lookup(sats)
+        logger.info("TLE extra lookup built: %d entries.", len(_state["tle_extra_lookup"]))
+
+        logger.info("[4/5] Extracting orbital features...")
         df = extract_features(sats)
 
-        logger.info("[4/4] Training Isolation Forest...")
+        logger.info("[5/5] Training Isolation Forest...")
         detector = OrbitalAnomalyDetector(contamination=0.05)
         df_anomalies = detector.fit_predict(df)
         _state["df_anomalies"] = df_anomalies
@@ -194,7 +224,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             "READY: %d satellites, %d anomalies, SATCAT entries: %d.",
             len(sats), n_anomalies, len(_state["satcat_lookup"]),
         )
-
     except FileNotFoundError as exc:
         logger.critical("TLE file not found: %s", exc)
 
@@ -205,17 +234,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     _state["detector"] = None
     _state["last_report"] = None
     _state["satcat_lookup"] = {}
+    _state["tle_extra_lookup"] = {}
     logger.info("Shutdown complete.")
 
 
 # ----------------------------------------------------------------
 # App setup
 # ----------------------------------------------------------------
-
 app = FastAPI(
     title="AI-Orbit Intelligence 3D",
-    description="Real-time orbital anomaly detection API. Sprint 8.",
-    version="0.8.0",
+    description="Real-time orbital anomaly detection API. Sprint 9.",
+    version="0.9.0",
     lifespan=lifespan,
 )
 
@@ -234,7 +263,6 @@ templates = Jinja2Templates(directory=BASE_DIR / "templates")
 # ----------------------------------------------------------------
 # Routes
 # ----------------------------------------------------------------
-
 @app.get("/", response_class=HTMLResponse, tags=["frontend"])
 async def index(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
@@ -246,7 +274,7 @@ async def health() -> HealthResponse:
     n_anomalies = int(df["is_anomaly"].sum()) if df is not None else 0
     return HealthResponse(
         status="ok",
-        version="0.8.0",
+        version="0.9.0",
         satellites_loaded=len(_state.get("satellites_tle", [])),
         anomalies_detected=n_anomalies,
     )
@@ -270,6 +298,7 @@ async def get_positions(
     satellites = _state.get("satellites_tle", [])
     df_anom = _state.get("df_anomalies")
     satcat = _state.get("satcat_lookup", {})
+    tle_extra = _state.get("tle_extra_lookup", {})
 
     if not satellites:
         raise HTTPException(status_code=503, detail="Satellite data not loaded yet.")
@@ -308,6 +337,11 @@ async def get_positions(
         sat_owner = sat_meta.get("owner", "UNKNOWN")
         sat_object_type = sat_meta.get("object_type", "UNKNOWN")
 
+        # Sprint 9: TLE extra data (mean_motion & inclination)
+        tle_data = tle_extra.get(norad_id, {})
+        sat_mean_motion = tle_data.get("mean_motion", 0.0)
+        sat_inclination = tle_data.get("inclination", 0.0)
+
         # --- Orbit / anomaly filters ---
         if filter_upper == "LEO" and orbit_type != "LEO":
             continue
@@ -335,6 +369,8 @@ async def get_positions(
             is_anomaly=flagged,
             owner=sat_owner,
             object_type=sat_object_type,
+            mean_motion=sat_mean_motion,
+            inclination=sat_inclination,
         ))
 
     # --- Sprint 7: TOP10 filter ---
@@ -365,7 +401,8 @@ async def ingest_tle(
         )
     except RuntimeError as exc:
         raise HTTPException(
-            status_code=502, detail=f"TLE download failed: {exc}"
+            status_code=502,
+            detail=f"TLE download failed: {exc}"
         ) from exc
 
 
@@ -381,7 +418,8 @@ async def analyse(
         df = extract_features(satellites)
         if df.empty:
             raise HTTPException(
-                status_code=422, detail="No satellites could be parsed."
+                status_code=422,
+                detail="No satellites could be parsed."
             )
 
         detector = OrbitalAnomalyDetector(contamination=contamination)
@@ -413,7 +451,8 @@ async def analyse(
 
     except FileNotFoundError as exc:
         raise HTTPException(
-            status_code=404, detail="TLE data not found."
+            status_code=404,
+            detail="TLE data not found."
         ) from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -431,10 +470,13 @@ async def get_anomalies(
     report = _state.get("last_report")
     if report is None:
         raise HTTPException(
-            status_code=404, detail="No analysis results available."
+            status_code=404,
+            detail="No analysis results available."
         )
     results = sorted(
-        report.satellites, key=lambda s: s.anomaly_score, reverse=True
+        report.satellites,
+        key=lambda s: s.anomaly_score,
+        reverse=True
     )
     if min_score is not None:
         results = [s for s in results if s.anomaly_score >= min_score]
@@ -450,11 +492,13 @@ async def get_satellite(norad_id: int) -> SatelliteAnomaly:
     report = _state.get("last_report")
     if report is None:
         raise HTTPException(
-            status_code=404, detail="No analysis results available."
+            status_code=404,
+            detail="No analysis results available."
         )
     for sat in report.satellites:
         if sat.norad_id == norad_id:
             return sat
     raise HTTPException(
-        status_code=404, detail=f"Satellite {norad_id} not found."
+        status_code=404,
+        detail=f"Satellite {norad_id} not found."
     )
