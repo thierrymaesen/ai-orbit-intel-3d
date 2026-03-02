@@ -1,6 +1,8 @@
 """Tests for AI-Orbit Intelligence 3D API.
 
 Sprint 10: Automated test suite using pytest + FastAPI TestClient.
+Sprint 11: Updated version assertions (1.0.0 -> 1.1.0),
+           updated /api/positions test to expect 200 in degraded mode.
 Tests run without live TLE data (satellites may not be loaded).
 """
 
@@ -29,7 +31,7 @@ class TestHealthCheck:
     def test_health_version(self):
         data = client.get("/health").json()
         assert "version" in data
-        assert data["version"] == "1.0.0"
+        assert data["version"] == "1.1.0"
 
 
 # ----------------------------------------------------------------
@@ -48,12 +50,12 @@ class TestFrontend:
 # 3. Positions endpoint
 # ----------------------------------------------------------------
 class TestPositions:
-    """Verify /api/positions returns a list (may be empty or 503 if no TLE data)."""
+    """Verify /api/positions returns a valid response."""
 
     def test_positions_response_code(self):
         response = client.get("/api/positions?filter_type=TOP10")
-        # 200 if data loaded, 503 if not - both are valid in CI
-        assert response.status_code in (200, 503)
+        # Sprint 11: always 200 (empty list in degraded mode, no more 503)
+        assert response.status_code == 200
 
     def test_positions_schema_when_loaded(self):
         response = client.get("/api/positions?filter_type=TOP10")
@@ -103,4 +105,4 @@ class TestDocs:
         assert response.status_code == 200
         data = response.json()
         assert data["info"]["title"] == "AI-Orbit Intelligence 3D"
-        assert data["info"]["version"] == "1.0.0"
+        assert data["info"]["version"] == "1.1.0"
