@@ -75,7 +75,7 @@ HTTP_TIMEOUT: float = 60.0  # generous timeout for cloud cold-starts
 # active payloads.
 # ---------------------------------------------------------------------------
 SATCAT_URL: str = (
-    "https://celestrak.org/satcat/records.php?ONORBIT=true&FORMAT=json"
+    "https://celestrak.org/satcat/records.php?GROUP=active&FORMAT=json"
 )
 
 # CelesTrak TLE URL (same as in orbit_intel.ingest but needed for local
