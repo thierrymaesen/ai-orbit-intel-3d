@@ -577,6 +577,10 @@ async def get_positions(
         except Exception:
             continue
 
+        # Sprint 11: skip satellites with non-finite coordinates (inf/NaN)
+        if not (math.isfinite(lat) and math.isfinite(lon) and math.isfinite(alt)):
+            continue
+
         norad_id = sat.model.satnum
         orbit_type = classify_orbit(alt)
 
