@@ -7,7 +7,7 @@ Tests run without live TLE data (satellites may not be loaded).
 """
 
 import pytest
-from fastapi.testclient import TestClienth
+from fastapi.testclient import TestClient
 
 from app.main import app
 
