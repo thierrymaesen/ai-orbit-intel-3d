@@ -222,7 +222,7 @@ The FastAPI backend exposes the following endpoints (interactive docs available 
 **Thierry Maesen**
 
 *   GitHub: [@thierrymaesen](https://github.com/thierrymaesen)
-*   Location: Seraing, Wallonia, BE
+*   Location: Flemalle, Wallonia, Belgium (BE)
 
 **Data Sources:**
 
