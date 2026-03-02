@@ -2,12 +2,16 @@
 
 Unified backend with lifespan-based automatic pipeline.
 Sprint 8:  SATCAT enrichment (owner, object_type), strategic OSINT filters.
-Sprint 9:  Added mean_motion & inclination to SatellitePosition for client-side
-           orbital animation.
+Sprint 9:  Added mean_motion & inclination to SatellitePosition for
+           client-side orbital animation.
 Sprint 10: Cloud-ready launcher, Dockerfile, CI/CD, tests.
 Sprint 11: Robust cloud data fetching — User-Agent headers, cache fallback,
            graceful degradation (no crash on network failure).
-No manual POST /api/v1/analyse needed.
+           No manual POST /api/v1/analyse needed.
+Sprint 12: Fix OSINT object_type filtering — CelesTrak uses abbreviated
+           codes (PAY, DEB, R/B, UNK) which must be normalised to full
+           names (PAYLOAD, DEBRIS, ROCKET BODY, UNKNOWN) to match the
+           frontend dropdown values.  Case-insensitive owner comparison.
 """
 
 import json
@@ -43,8 +47,8 @@ logging.basicConfig(
 # ---------------------------------------------------------------------------
 # Sprint 11: Absolute paths — works regardless of Docker WORKDIR
 # ---------------------------------------------------------------------------
-BASE_DIR: Path = Path(__file__).resolve().parent            # .../app/
-PROJECT_ROOT: Path = BASE_DIR.parent                        # .../ai-orbit-intel-3d/
+BASE_DIR: Path = Path(__file__).resolve().parent   # .../app/
+PROJECT_ROOT: Path = BASE_DIR.parent               # .../ai-orbit-intel-3d/
 DEFAULT_DATA_DIR: Path = PROJECT_ROOT / "data"
 
 # Ensure the data directory exists at import time (Docker, HF, local, CI)
@@ -65,15 +69,42 @@ HTTP_HEADERS: Dict[str, str] = {
 }
 HTTP_TIMEOUT: float = 60.0  # generous timeout for cloud cold-starts
 
-SATCAT_URL: str = "https://celestrak.org/satcat/records.php?GROUP=active&FORMAT=json"
+# ---------------------------------------------------------------------------
+# Sprint 12 fix: Use ONORBIT query instead of GROUP=active so that the
+# SATCAT includes debris, rocket bodies, and unknown objects — not just
+# active payloads.
+# ---------------------------------------------------------------------------
+SATCAT_URL: str = (
+    "https://celestrak.org/satcat/records.php?ONORBIT=true&FORMAT=json"
+)
 
-# CelesTrak TLE URL (same as in orbit_intel.ingest but needed for local fallback logic)
+# CelesTrak TLE URL (same as in orbit_intel.ingest but needed for local
+# fallback logic)
 CELESTRAK_TLE_URL: str = (
     "https://celestrak.org/NORAD/elements/gp.php"
     "?GROUP=active&FORMAT=tle"
 )
+
 TLE_FILENAME: str = "active_satellites.txt"
 SATCAT_CACHE_FILE: str = "satcat_cache.json"
+
+# ---------------------------------------------------------------------------
+# Sprint 12 fix: CelesTrak SATCAT uses abbreviated OBJECT_TYPE codes.
+# The frontend <select> sends full names.  This map normalises abbreviations
+# to the full names expected by the UI.
+# ---------------------------------------------------------------------------
+SATCAT_TYPE_MAP: Dict[str, str] = {
+    "PAY": "PAYLOAD",
+    "DEB": "DEBRIS",
+    "R/B": "ROCKET BODY",
+    "UNK": "UNKNOWN",
+    "TBA": "TBA",
+    # Full names map to themselves (in case CelesTrak ever changes format)
+    "PAYLOAD": "PAYLOAD",
+    "DEBRIS": "DEBRIS",
+    "ROCKET BODY": "ROCKET BODY",
+    "UNKNOWN": "UNKNOWN",
+}
 
 _state: Dict[str, Any] = {
     "satellites_tle": [],
@@ -81,8 +112,9 @@ _state: Dict[str, Any] = {
     "detector": None,
     "last_report": None,
     "satcat_lookup": {},
-    "tle_extra_lookup": {},      # Sprint 9: mean_motion & inclination from TLE
+    "tle_extra_lookup": {},  # Sprint 9: mean_motion & inclination from TLE
 }
+
 
 def classify_orbit(alt_km: float) -> str:
     if alt_km < 2000:
@@ -116,6 +148,22 @@ def build_tle_extra_lookup(
             "inclination": round(inclination_deg, 4),
         }
     return lookup
+
+
+# ---------------------------------------------------------------------------
+# Sprint 12 helper: normalise a raw OBJECT_TYPE from CelesTrak
+# ---------------------------------------------------------------------------
+def normalise_object_type(raw: str) -> str:
+    """Map CelesTrak abbreviated OBJECT_TYPE codes to full names.
+
+    Examples:
+        'PAY'  -> 'PAYLOAD'
+        'DEB'  -> 'DEBRIS'
+        'R/B'  -> 'ROCKET BODY'
+        'UNK'  -> 'UNKNOWN'
+    """
+    cleaned = raw.strip().upper()
+    return SATCAT_TYPE_MAP.get(cleaned, cleaned)
 
 
 # ----------------------------------------------------------------
@@ -186,19 +234,19 @@ class IngestResponse(BaseModel):
     satellite_count: int = Field(..., examples=[9000])
 
 
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 # Sprint 11: Robust TLE download with User-Agent, retry, and cache fallback
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 def download_tle_robust(data_dir: Path) -> Path:
     """Download TLE data with proper headers and fallback to local cache.
 
     Strategy:
-      1. Try to download live data from CelesTrak with a professional
-         User-Agent header (avoids 403 / rate-limit blocks on cloud IPs).
-      2. On ANY failure (timeout, 403, network error), fall back to the
-         existing cached file if present.
-      3. If no cache exists either, raise FileNotFoundError so the caller
-         can handle graceful degradation.
+    1. Try to download live data from CelesTrak with a professional
+       User-Agent header (avoids 403 / rate-limit blocks on cloud IPs).
+    2. On ANY failure (timeout, 403, network error), fall back to the
+       existing cached file if present.
+    3. If no cache exists either, raise FileNotFoundError so the caller
+       can handle graceful degradation.
 
     Returns:
         Path to the TLE file (freshly downloaded or cached).
@@ -222,10 +270,12 @@ def download_tle_robust(data_dir: Path) -> Path:
         ) as client:
             resp = client.get(CELESTRAK_TLE_URL)
             resp.raise_for_status()
+            content = resp.text
 
-        content = resp.text
         if not content or len(content.strip()) < 100:
-            raise ValueError("CelesTrak returned empty or too-short TLE data.")
+            raise ValueError(
+                "CelesTrak returned empty or too-short TLE data."
+            )
 
         # Atomic write: write to temp then move
         tmp_path = final_path.with_suffix(".tmp")
@@ -241,7 +291,8 @@ def download_tle_robust(data_dir: Path) -> Path:
 
     except Exception as exc:
         logger.warning(
-            "Live TLE download FAILED: %s -- checking local cache...", exc
+            "Live TLE download FAILED: %s -- checking local cache...",
+            exc,
         )
 
     # --- Fallback: use cached file ---
@@ -261,9 +312,33 @@ def download_tle_robust(data_dir: Path) -> Path:
     )
 
 
-# ---------------------------------------------------------------------------
-# Sprint 11: Robust SATCAT download with User-Agent and fallback
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------
+# Sprint 11 + Sprint 12 fix: Robust SATCAT download with normalisation
+# --------------------------------------------------------------------------
+def _parse_satcat_records(records: list) -> Dict[int, Dict[str, str]]:
+    """Parse a list of CelesTrak SATCAT JSON records into a lookup dict.
+
+    Sprint 12: normalises OBJECT_TYPE abbreviations (PAY -> PAYLOAD, etc.)
+    so that the frontend dropdown values match.
+    """
+    lookup: Dict[int, Dict[str, str]] = {}
+    for rec in records:
+        norad_id = rec.get("NORAD_CAT_ID")
+        if norad_id is None:
+            continue
+        try:
+            norad_id = int(norad_id)
+        except (ValueError, TypeError):
+            continue
+        owner = rec.get("OWNER", "UNKNOWN") or "UNKNOWN"
+        obj_type_raw = rec.get("OBJECT_TYPE", "UNKNOWN") or "UNKNOWN"
+        lookup[norad_id] = {
+            "owner": owner.strip(),
+            "object_type": normalise_object_type(obj_type_raw),
+        }
+    return lookup
+
+
 def fetch_satcat(data_dir: Path) -> Dict[int, Dict[str, str]]:
     """Download SATCAT JSON from CelesTrak with proper headers.
 
@@ -271,7 +346,6 @@ def fetch_satcat(data_dir: Path) -> Dict[int, Dict[str, str]]:
     Returns an empty dict (never crashes) if both fail.
     """
     logger.info("Downloading SATCAT from %s ...", SATCAT_URL)
-    lookup: Dict[int, Dict[str, str]] = {}
     cache_path: Path = data_dir / SATCAT_CACHE_FILE
 
     try:
@@ -284,22 +358,12 @@ def fetch_satcat(data_dir: Path) -> Dict[int, Dict[str, str]]:
             resp.raise_for_status()
             records = resp.json()
 
-        for rec in records:
-            norad_id = rec.get("NORAD_CAT_ID")
-            if norad_id is None:
-                continue
-            try:
-                norad_id = int(norad_id)
-            except (ValueError, TypeError):
-                continue
-            owner = rec.get("OWNER", "UNKNOWN") or "UNKNOWN"
-            obj_type = rec.get("OBJECT_TYPE", "UNKNOWN") or "UNKNOWN"
-            lookup[norad_id] = {
-                "owner": owner.strip(),
-                "object_type": obj_type.strip(),
-            }
-
+        lookup = _parse_satcat_records(records)
         logger.info("SATCAT loaded: %d records.", len(lookup))
+
+        # Log unique object types for debugging
+        unique_types = set(v["object_type"] for v in lookup.values())
+        logger.info("SATCAT unique object_types (normalised): %s", unique_types)
 
         # Persist cache for future fallback
         try:
@@ -322,20 +386,7 @@ def fetch_satcat(data_dir: Path) -> Dict[int, Dict[str, str]]:
     if cache_path.exists():
         try:
             records = json.loads(cache_path.read_text(encoding="utf-8"))
-            for rec in records:
-                norad_id = rec.get("NORAD_CAT_ID")
-                if norad_id is None:
-                    continue
-                try:
-                    norad_id = int(norad_id)
-                except (ValueError, TypeError):
-                    continue
-                owner = rec.get("OWNER", "UNKNOWN") or "UNKNOWN"
-                obj_type = rec.get("OBJECT_TYPE", "UNKNOWN") or "UNKNOWN"
-                lookup[norad_id] = {
-                    "owner": owner.strip(),
-                    "object_type": obj_type.strip(),
-                }
+            lookup = _parse_satcat_records(records)
             logger.warning(
                 "Using CACHED SATCAT: %d records from %s",
                 len(lookup),
@@ -352,9 +403,9 @@ def fetch_satcat(data_dir: Path) -> Dict[int, Dict[str, str]]:
     return {}
 
 
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 # Sprint 11: Robust Lifespan -- never crashes, graceful degradation
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("=" * 60)
@@ -417,9 +468,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                     SatelliteAnomaly(
                         name=row["name"],
                         norad_id=int(norad_id),
-                        inclination=round(float(row["inclination"]), 6),
-                        eccentricity=round(float(row["eccentricity"]), 6),
-                        mean_motion=round(float(row["mean_motion"]), 6),
+                        inclination=round(
+                            float(row["inclination"]), 6
+                        ),
+                        eccentricity=round(
+                            float(row["eccentricity"]), 6
+                        ),
+                        mean_motion=round(
+                            float(row["mean_motion"]), 6
+                        ),
                         bstar=float(row["bstar"]),
                         is_anomaly=bool(row["is_anomaly"]),
                         anomaly_score=round(
@@ -427,7 +484,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                         ),
                     )
                 )
-
             _state["last_report"] = AnomalyReport(
                 total_satellites=len(df_anomalies),
                 total_anomalies=n_anomalies,
@@ -450,7 +506,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception as exc:
         # Catch-all: log but NEVER crash the server
         logger.critical(
-            "Unexpected error during startup pipeline: %s", exc,
+            "Unexpected error during startup pipeline: %s",
+            exc,
             exc_info=True,
         )
         logger.warning(
@@ -477,9 +534,9 @@ app = FastAPI(
     title="AI-Orbit Intelligence 3D",
     description=(
         "Real-time orbital anomaly detection API. "
-        "Sprint 11 - Robust cloud deployment."
+        "Sprint 12 - OSINT filter fix."
     ),
-    version="1.1.0",
+    version="1.2.0",
     lifespan=lifespan,
 )
 
@@ -513,10 +570,10 @@ async def health() -> HealthResponse:
     n_anomalies = int(df["is_anomaly"].sum()) if df is not None else 0
     return HealthResponse(
         status="ok",
-        version="1.1.0",
+        version="1.2.0",
         satellites_loaded=len(_state.get("satellites_tle", [])),
         anomalies_detected=n_anomalies,
-    )
+           )
 
 
 @app.get(
@@ -564,9 +621,19 @@ async def get_positions(
         ].to_dict("index")
 
     filter_upper = filter_type.upper()
-    t_now = ts.now()
-    positions: List[SatellitePosition] = []
 
+    # Sprint 12 fix: pre-normalise filter values once (not per-satellite)
+    owner_filter_upper: Optional[str] = None
+    if owner and owner.strip():
+        owner_filter_upper = owner.strip().upper()
+
+    object_type_filter_upper: Optional[str] = None
+    if object_type and object_type.strip():
+        object_type_filter_upper = object_type.strip().upper()
+
+    t_now = ts.now()
+
+    positions: List[SatellitePosition] = []
     for sat in satellites:
         try:
             geocentric = sat.at(t_now)
@@ -578,7 +645,11 @@ async def get_positions(
             continue
 
         # Sprint 11: skip satellites with non-finite coordinates (inf/NaN)
-        if not (math.isfinite(lat) and math.isfinite(lon) and math.isfinite(alt)):
+        if not (
+            math.isfinite(lat)
+            and math.isfinite(lon)
+            and math.isfinite(alt)
+        ):
             continue
 
         norad_id = sat.model.satnum
@@ -592,7 +663,7 @@ async def get_positions(
             score = 0.0
             flagged = False
 
-        # SATCAT enrichment (Sprint 8)
+        # SATCAT enrichment (Sprint 8, normalised in Sprint 12)
         sat_meta = satcat.get(norad_id, {})
         sat_owner = sat_meta.get("owner", "UNKNOWN")
         sat_object_type = sat_meta.get("object_type", "UNKNOWN")
@@ -612,14 +683,15 @@ async def get_positions(
         if filter_upper == "ANOMALIES" and not flagged:
             continue
 
-        # --- Strategic OSINT filters (Sprint 8) ---
-        if owner and sat_owner != owner.strip():
-            continue
-        if (
-            object_type
-            and sat_object_type.upper() != object_type.strip().upper()
-        ):
-            continue
+        # --- Strategic OSINT filters (Sprint 8 + Sprint 12 fix) ---
+        # Case-insensitive, whitespace-tolerant comparisons
+        if owner_filter_upper:
+            if sat_owner.strip().upper() != owner_filter_upper:
+                continue
+
+        if object_type_filter_upper:
+            if sat_object_type.strip().upper() != object_type_filter_upper:
+                continue
 
         positions.append(
             SatellitePosition(
@@ -647,7 +719,7 @@ async def get_positions(
         timestamp=time.time(),
         total_satellites=len(positions),
         satellites=positions,
-    )
+           )
 
 
 @app.post(
@@ -689,17 +761,14 @@ async def analyse(
     try:
         satellites = load_tle_objects(data_dir=Path(data_dir))
         _state["satellites_tle"] = satellites
-
         df = extract_features(satellites)
         if df.empty:
             raise HTTPException(
                 status_code=422,
                 detail="No satellites could be parsed.",
             )
-
         detector = OrbitalAnomalyDetector(contamination=contamination)
         df_result = detector.fit_predict(df)
-
         _state["df_anomalies"] = df_result
         _state["detector"] = detector
 
@@ -709,7 +778,9 @@ async def analyse(
                 SatelliteAnomaly(
                     name=row["name"],
                     norad_id=int(norad_id),
-                    inclination=round(float(row["inclination"]), 6),
+                    inclination=round(
+                        float(row["inclination"]), 6
+                    ),
                     eccentricity=round(
                         float(row["eccentricity"]), 6
                     ),
@@ -740,7 +811,8 @@ async def analyse(
         ) from exc
     except ValueError as exc:
         raise HTTPException(
-            status_code=422, detail=str(exc),
+            status_code=422,
+            detail=str(exc),
         ) from exc
 
 
@@ -761,7 +833,6 @@ async def get_anomalies(
             status_code=404,
             detail="No analysis results available.",
         )
-
     results = sorted(
         report.satellites,
         key=lambda s: s.anomaly_score,
