@@ -7,7 +7,7 @@
              Selection (RED), Footer, Paths to Earth.
    Sprint 8: Strategic OSINT Filters (Owner & Object Type),
              SATCAT-enriched data display in tooltips & wiki modal.
-   Sprint 9: Client-Side Orbital Animation (Play/Pause).
+   Sprint 9: Client-Side Orbital Animation (Playhh/Pause).
              Uses mean_motion & inclination from the API to animate
              satellite positions in real time via requestAnimationFrame.
 
@@ -155,7 +155,7 @@ var myGlobe = Globe()(document.getElementById("globeViz"))
   .ringRepeatPeriod(1400);
 
 // Slow auto-rotation
-myGlobe.controls().autoRotate = true;
+myGlobe.controls().autoRotate = false;
 myGlobe.controls().autoRotateSpeed = 0.3;
 
 // -------------------------------------------------------------------
