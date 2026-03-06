@@ -75,7 +75,7 @@ HTTP_TIMEOUT: float = 60.0  # generous timeout for cloud cold-starts
 # active payloads.
 # ---------------------------------------------------------------------------
 SATCAT_URL: str = (
-    "https://celestrak.org/satcat/records.php?GROUP=active&FORMAT=json"
+    "https://celestrak.org/satcat/records.php?SATCAT_STATUS=onorbit&FORMAT=json"
 )
 
 # CelesTrak TLE URL (same as in orbit_intel.ingest but needed for local
@@ -163,7 +163,18 @@ def normalise_object_type(raw: str) -> str:
         'UNK'  -> 'UNKNOWN'
     """
     cleaned = raw.strip().upper()
-    return SATCAT_TYPE_MAP.get(cleaned, cleaned)
+    # Exact match first via lookup table
+    mapped = SATCAT_TYPE_MAP.get(cleaned)
+    if mapped:
+        return mapped
+    # Aggressive substring matching for variants
+    if "DEB" in cleaned:
+        return "DEBRIS"
+    if "R/B" in cleaned or "ROCKET" in cleaned:
+        return "ROCKET BODY"
+    if "PAY" in cleaned:
+        return "PAYLOAD"
+    return cleaned
 
 
 # ----------------------------------------------------------------
