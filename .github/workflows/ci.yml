@@ -58,5 +58,7 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          git remote add hf https://hf_user:${HF_TOKEN}@huggingface.co/spaces/thierrymaesen/ai-orbit-intel-3d
+          git config --global credential.helper store
+          echo "https://thierrymaesen:$HF_TOKEN@huggingface.co" > ~/.git-credentials
+          git remote add hf https://huggingface.co/spaces/thierrymaesen/ai-orbit-intel-3d
           git push hf main --force
