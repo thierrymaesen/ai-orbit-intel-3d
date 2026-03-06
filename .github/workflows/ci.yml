@@ -55,6 +55,8 @@ jobs:
           git config --global user.name "github-actions[bot]"
 
       - name: Push to Hugging Face Spaces
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          git remote add hf https://thierrymaesen:${{ secrets.HF_TOKEN }}@huggingface.co/spaces/thierrymaesen/ai-orbit-intel-3d
+          git remote add hf https://hf_user:${HF_TOKEN}@huggingface.co/spaces/thierrymaesen/ai-orbit-intel-3d
           git push hf main --force
