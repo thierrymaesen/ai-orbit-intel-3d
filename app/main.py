@@ -12,6 +12,9 @@ Sprint 12: Fix OSINT object_type filtering — CelesTrak uses abbreviated
            codes (PAY, DEB, R/B, UNK) which must be normalised to full
            names (PAYLOAD, DEBRIS, ROCKET BODY, UNKNOWN) to match the
            frontend dropdown values.  Case-insensitive owner comparison.
+Sprint 13: Fix debris at zero — TLE source was GROUP=active only (no debris).
+           Now downloads active + Fengyun-1C + Iridium-33 debris TLE groups
+           and merges them so the SATCAT inner-join keeps debris objects.
 """
 
 import json
@@ -47,11 +50,9 @@ logging.basicConfig(
 # ---------------------------------------------------------------------------
 # Sprint 11: Absolute paths — works regardless of Docker WORKDIR
 # ---------------------------------------------------------------------------
-BASE_DIR: Path = Path(__file__).resolve().parent   # .../app/
-PROJECT_ROOT: Path = BASE_DIR.parent               # .../ai-orbit-intel-3d/
-DEFAULT_DATA_DIR: Path = PROJECT_ROOT / "data"
-
-# Ensure the data directory exists at import time (Docker, HF, local, CI)
+BASE_DIR: Path = Path(__file__).resolve().parent      # .../app/
+PROJECT_ROOT: Path = BASE_DIR.parent                  # .../ai-orbit-intel-3d/
+DEFAULT_DATA_DIR: Path = PROJECT_ROOT / "data"        # Ensure the data directory exists at import time (Docker, HF, local, CI)
 DEFAULT_DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 ts = load.timescale()
@@ -78,12 +79,21 @@ SATCAT_URL: str = (
     "https://celestrak.org/satcat/records.php?SATCAT_STATUS=onorbit&FORMAT=json"
 )
 
-# CelesTrak TLE URL (same as in orbit_intel.ingest but needed for local
-# fallback logic)
-CELESTRAK_TLE_URL: str = (
-    "https://celestrak.org/NORAD/elements/gp.php"
-    "?GROUP=active&FORMAT=tle"
-)
+# ---------------------------------------------------------------------------
+# Sprint 13 fix: Multiple TLE sources to include debris objects.
+# GROUP=active only contains operational payloads — no debris.
+# We now download additional debris groups and merge them.
+# ---------------------------------------------------------------------------
+CELESTRAK_TLE_URLS: List[str] = [
+    # 1) Active (operational) satellites
+    "https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle",
+    # 2) Fengyun-1C debris (2007 Chinese ASAT test — ~3,400 tracked pieces)
+    "https://celestrak.org/NORAD/elements/gp.php?GROUP=1999-025&FORMAT=tle",
+    # 3) Iridium-33 / Cosmos-2251 collision debris (~2,000 tracked pieces)
+    "https://celestrak.org/NORAD/elements/gp.php?GROUP=iridium-33-debris&FORMAT=tle",
+    # 4) Cosmos-2251 debris
+    "https://celestrak.org/NORAD/elements/gp.php?GROUP=cosmos-2251-debris&FORMAT=tle",
+]
 
 TLE_FILENAME: str = "active_satellites.txt"
 SATCAT_CACHE_FILE: str = "satcat_cache.json"
@@ -112,7 +122,7 @@ _state: Dict[str, Any] = {
     "detector": None,
     "last_report": None,
     "satcat_lookup": {},
-    "tle_extra_lookup": {},  # Sprint 9: mean_motion & inclination from TLE
+    "tle_extra_lookup": {},    # Sprint 9: mean_motion & inclination from TLE
 }
 
 
@@ -156,11 +166,10 @@ def build_tle_extra_lookup(
 def normalise_object_type(raw: str) -> str:
     """Map CelesTrak abbreviated OBJECT_TYPE codes to full names.
 
-    Examples:
-        'PAY'  -> 'PAYLOAD'
-        'DEB'  -> 'DEBRIS'
-        'R/B'  -> 'ROCKET BODY'
-        'UNK'  -> 'UNKNOWN'
+    Examples:  'PAY' -> 'PAYLOAD'
+               'DEB' -> 'DEBRIS'
+               'R/B' -> 'ROCKET BODY'
+               'UNK' -> 'UNKNOWN'
     """
     cleaned = raw.strip().upper()
     # Exact match first via lookup table
@@ -182,7 +191,7 @@ def normalise_object_type(raw: str) -> str:
 # ----------------------------------------------------------------
 class HealthResponse(BaseModel):
     status: str = Field(..., examples=["ok"])
-    version: str = Field(..., examples=["1.0.0"])
+    version: str = Field(..., examples=["1.3.0"])
     satellites_loaded: int = Field(..., examples=[14000])
     anomalies_detected: int = Field(..., examples=[700])
 
@@ -246,21 +255,27 @@ class IngestResponse(BaseModel):
 
 
 # --------------------------------------------------------------------------
-# Sprint 11: Robust TLE download with User-Agent, retry, and cache fallback
+# Sprint 13: Robust multi-source TLE download with merge, User-Agent,
+# retry, and cache fallback.
 # --------------------------------------------------------------------------
 def download_tle_robust(data_dir: Path) -> Path:
-    """Download TLE data with proper headers and fallback to local cache.
+    """Download TLE data from multiple CelesTrak groups and merge them.
+
+    Sprint 13 fix: Instead of only GROUP=active (which contains zero debris),
+    we now iterate over CELESTRAK_TLE_URLS (active + major debris groups)
+    and concatenate all TLE text into a single file.
 
     Strategy:
-    1. Try to download live data from CelesTrak with a professional
-       User-Agent header (avoids 403 / rate-limit blocks on cloud IPs).
-    2. On ANY failure (timeout, 403, network error), fall back to the
-       existing cached file if present.
-    3. If no cache exists either, raise FileNotFoundError so the caller
-       can handle graceful degradation.
+      1. For each URL in CELESTRAK_TLE_URLS, download TLE text with a
+         professional User-Agent header.
+      2. Concatenate all successful responses into one combined TLE file.
+      3. On ANY individual failure, log a warning but continue with the
+         other sources.
+      4. If ALL downloads fail, fall back to the existing cached file.
+      5. If no cache exists either, raise FileNotFoundError.
 
     Returns:
-        Path to the TLE file (freshly downloaded or cached).
+        Path to the merged TLE file (freshly downloaded or cached).
 
     Raises:
         FileNotFoundError: No live data AND no cached file available.
@@ -268,45 +283,96 @@ def download_tle_robust(data_dir: Path) -> Path:
     data_dir.mkdir(parents=True, exist_ok=True)
     final_path: Path = data_dir / TLE_FILENAME
 
-    # --- Attempt live download ---
+    # --- Attempt live downloads from all TLE sources ---
+    all_tle_lines: List[str] = []
+    seen_norad_ids: set = set()
+    success_count: int = 0
+
     try:
-        logger.info(
-            "Downloading TLE data from CelesTrak (User-Agent: %s) ...",
-            HTTP_USER_AGENT,
-        )
         with httpx.Client(
             timeout=HTTP_TIMEOUT,
             headers=HTTP_HEADERS,
             follow_redirects=True,
         ) as client:
-            resp = client.get(CELESTRAK_TLE_URL)
-            resp.raise_for_status()
-            content = resp.text
+            for url in CELESTRAK_TLE_URLS:
+                try:
+                    logger.info("Downloading TLE from: %s", url)
+                    resp = client.get(url)
+                    resp.raise_for_status()
+                    content = resp.text.strip()
 
-        if not content or len(content.strip()) < 100:
-            raise ValueError(
-                "CelesTrak returned empty or too-short TLE data."
-            )
+                    if not content or len(content) < 50:
+                        logger.warning(
+                            "Empty/short response from %s -- skipping.", url
+                        )
+                        continue
 
-        # Atomic write: write to temp then move
-        tmp_path = final_path.with_suffix(".tmp")
-        tmp_path.write_text(content, encoding="utf-8")
-        tmp_path.replace(final_path)
+                    # De-duplicate: parse TLE triplets and skip if NORAD ID
+                    # already seen (a satellite could appear in two groups).
+                    lines = content.splitlines()
+                    i = 0
+                    new_lines_count = 0
+                    while i + 2 < len(lines):
+                        line0 = lines[i].strip()
+                        line1 = lines[i + 1].strip()
+                        line2 = lines[i + 2].strip()
 
-        logger.info(
-            "TLE data saved successfully: %s (%d bytes)",
-            final_path,
-            len(content),
-        )
-        return final_path
+                        # Basic TLE triplet validation
+                        if line1.startswith("1 ") and line2.startswith("2 "):
+                            try:
+                                norad_id = int(line1[2:7].strip())
+                            except (ValueError, IndexError):
+                                norad_id = None
+
+                            if norad_id and norad_id not in seen_norad_ids:
+                                seen_norad_ids.add(norad_id)
+                                all_tle_lines.append(line0)
+                                all_tle_lines.append(line1)
+                                all_tle_lines.append(line2)
+                                new_lines_count += 1
+                            i += 3
+                        else:
+                            # Skip malformed line and try next
+                            i += 1
+
+                    logger.info(
+                        "  -> %d new objects from %s (skipped %d duplicates).",
+                        new_lines_count,
+                        url.split("GROUP=")[1].split("&")[0] if "GROUP=" in url else url,
+                        (len(lines) // 3) - new_lines_count,
+                    )
+                    success_count += 1
+
+                except Exception as url_exc:
+                    logger.warning(
+                        "TLE download FAILED for %s: %s -- continuing with other sources.",
+                        url,
+                        url_exc,
+                    )
 
     except Exception as exc:
         logger.warning(
-            "Live TLE download FAILED: %s -- checking local cache...",
-            exc,
+            "HTTP client error during TLE downloads: %s", exc
         )
 
+    # --- Write merged TLE file ---
+    if all_tle_lines:
+        merged_content = "\n".join(all_tle_lines) + "\n"
+        tmp_path = final_path.with_suffix(".tmp")
+        tmp_path.write_text(merged_content, encoding="utf-8")
+        tmp_path.replace(final_path)
+        total_objects = len(all_tle_lines) // 3
+        logger.info(
+            "TLE data merged & saved: %s (%d objects from %d sources, %d bytes)",
+            final_path,
+            total_objects,
+            success_count,
+            len(merged_content),
+        )
+        return final_path
+
     # --- Fallback: use cached file ---
+    logger.warning("ALL TLE downloads failed -- checking local cache...")
     if final_path.exists() and final_path.stat().st_size > 100:
         age_hours = (time.time() - final_path.stat().st_mtime) / 3600
         logger.warning(
@@ -358,7 +424,6 @@ def fetch_satcat(data_dir: Path) -> Dict[int, Dict[str, str]]:
     """
     logger.info("Downloading SATCAT from %s ...", SATCAT_URL)
     cache_path: Path = data_dir / SATCAT_CACHE_FILE
-
     try:
         with httpx.Client(
             timeout=HTTP_TIMEOUT,
@@ -390,28 +455,28 @@ def fetch_satcat(data_dir: Path) -> Dict[int, Dict[str, str]]:
 
     except Exception as exc:
         logger.warning(
-            "Live SATCAT download FAILED: %s -- checking cache...", exc
+            "Live SATCAT download FAILED: %s -- checking cache...",
+            exc,
         )
+        # --- Fallback: local cache ---
+        if cache_path.exists():
+            try:
+                records = json.loads(cache_path.read_text(encoding="utf-8"))
+                lookup = _parse_satcat_records(records)
+                logger.warning(
+                    "Using CACHED SATCAT: %d records from %s",
+                    len(lookup),
+                    cache_path,
+                )
+                return lookup
+            except Exception as cache_exc:
+                logger.error("SATCAT cache read failed: %s", cache_exc)
 
-    # --- Fallback: local cache ---
-    if cache_path.exists():
-        try:
-            records = json.loads(cache_path.read_text(encoding="utf-8"))
-            lookup = _parse_satcat_records(records)
-            logger.warning(
-                "Using CACHED SATCAT: %d records from %s",
-                len(lookup),
-                cache_path,
-            )
-            return lookup
-        except Exception as cache_exc:
-            logger.error("SATCAT cache read failed: %s", cache_exc)
-
-    logger.error(
-        "SATCAT unavailable (no live data, no cache). "
-        "Owner/object_type will show UNKNOWN."
-    )
-    return {}
+        logger.error(
+            "SATCAT unavailable (no live data, no cache). "
+            "Owner/object_type will show UNKNOWN."
+        )
+        return {}
 
 
 # --------------------------------------------------------------------------
@@ -423,10 +488,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("AI-Orbit Intelligence 3D - Initializing...")
     logger.info("Data directory: %s", DEFAULT_DATA_DIR)
     logger.info("=" * 60)
-
     try:
         # --- Step 1: Download / load TLE data ---
-        logger.info("[1/5] Downloading TLE satellite catalogue...")
+        logger.info("[1/5] Downloading TLE satellite catalogue (multi-source)...")
         try:
             download_tle_robust(data_dir=DEFAULT_DATA_DIR)
         except FileNotFoundError as tle_exc:
@@ -442,12 +506,41 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 "Starting with 0 satellites -- UI will display an empty globe."
             )
             sats = []
-
         _state["satellites_tle"] = sats
 
         # --- Step 2: Download / load SATCAT ---
         logger.info("[2/5] Downloading SATCAT (owner & object type)...")
         _state["satcat_lookup"] = fetch_satcat(data_dir=DEFAULT_DATA_DIR)
+
+        # --- Sprint 13: Log debris / rocket body counts for verification ---
+        satcat = _state["satcat_lookup"]
+        debris_in_satcat = sum(
+            1 for v in satcat.values() if v["object_type"] == "DEBRIS"
+        )
+        rb_in_satcat = sum(
+            1 for v in satcat.values() if v["object_type"] == "ROCKET BODY"
+        )
+        tle_norad_ids = {sat.model.satnum for sat in sats}
+        debris_with_tle = sum(
+            1
+            for nid in tle_norad_ids
+            if satcat.get(nid, {}).get("object_type") == "DEBRIS"
+        )
+        rb_with_tle = sum(
+            1
+            for nid in tle_norad_ids
+            if satcat.get(nid, {}).get("object_type") == "ROCKET BODY"
+        )
+        logger.info(
+            "SATCAT breakdown: %d DEBRIS total, %d ROCKET BODY total.",
+            debris_in_satcat,
+            rb_in_satcat,
+        )
+        logger.info(
+            "TLE+SATCAT intersection: %d DEBRIS with TLE, %d ROCKET BODY with TLE.",
+            debris_with_tle,
+            rb_with_tle,
+        )
 
         # --- Step 3: Build TLE extra lookup ---
         logger.info(
@@ -467,12 +560,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             logger.info("[5/5] Training Isolation Forest...")
             detector = OrbitalAnomalyDetector(contamination=0.05)
             df_anomalies = detector.fit_predict(df)
-
             _state["df_anomalies"] = df_anomalies
             _state["detector"] = detector
 
             n_anomalies = int(df_anomalies["is_anomaly"].sum())
-
             records: List[SatelliteAnomaly] = []
             for norad_id, row in df_anomalies.iterrows():
                 records.append(
@@ -501,12 +592,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 contamination_rate=0.05,
                 satellites=records,
             )
-
             logger.info(
-                "READY: %d satellites, %d anomalies, SATCAT entries: %d.",
+                "READY: %d satellites, %d anomalies, SATCAT entries: %d, "
+                "DEBRIS with TLE: %d, ROCKET BODY with TLE: %d.",
                 len(sats),
                 n_anomalies,
-                len(_state["satcat_lookup"]),
+                len(satcat),
+                debris_with_tle,
+                rb_with_tle,
             )
         else:
             logger.warning(
@@ -545,9 +638,9 @@ app = FastAPI(
     title="AI-Orbit Intelligence 3D",
     description=(
         "Real-time orbital anomaly detection API. "
-        "Sprint 12 - OSINT filter fix."
+        "Sprint 13 - Multi-source TLE for debris visibility."
     ),
-    version="1.2.0",
+    version="1.3.0",
     lifespan=lifespan,
 )
 
@@ -581,10 +674,10 @@ async def health() -> HealthResponse:
     n_anomalies = int(df["is_anomaly"].sum()) if df is not None else 0
     return HealthResponse(
         status="ok",
-        version="1.2.0",
+        version="1.3.0",
         satellites_loaded=len(_state.get("satellites_tle", [])),
         anomalies_detected=n_anomalies,
-           )
+    )
 
 
 @app.get(
@@ -699,7 +792,6 @@ async def get_positions(
         if owner_filter_upper:
             if sat_owner.strip().upper() != owner_filter_upper:
                 continue
-
         if object_type_filter_upper:
             if sat_object_type.strip().upper() != object_type_filter_upper:
                 continue
@@ -730,7 +822,7 @@ async def get_positions(
         timestamp=time.time(),
         total_satellites=len(positions),
         satellites=positions,
-           )
+    )
 
 
 @app.post(
@@ -772,12 +864,14 @@ async def analyse(
     try:
         satellites = load_tle_objects(data_dir=Path(data_dir))
         _state["satellites_tle"] = satellites
+
         df = extract_features(satellites)
         if df.empty:
             raise HTTPException(
                 status_code=422,
                 detail="No satellites could be parsed.",
             )
+
         detector = OrbitalAnomalyDetector(contamination=contamination)
         df_result = detector.fit_predict(df)
         _state["df_anomalies"] = df_result
@@ -883,5 +977,8 @@ if __name__ == "__main__":
 
     port = int(os.environ.get("PORT", 7860))
     uvicorn.run(
-        "app.main:app", host="0.0.0.0", port=port, reload=False
+        "app.main:app",
+        host="0.0.0.0",
+        port=port,
+        reload=False,
     )
