@@ -10,7 +10,7 @@ license: mit
 
 <div align="center">
 
-🇫🇷 [Version française](#french) | 🇬🇧 [English version](#english)
+  <a href="#french">🇫🇷 Version française</a> | <a href="#english">🇬🇧 English version</a>
 
 </div>
 
