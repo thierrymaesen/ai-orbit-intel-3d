@@ -53,6 +53,9 @@ body {
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     box-shadow: 0 4px 30px rgba(0, 0, 0, 0.4);
+	max-height: 90vh;
+    overflow-y: auto;
+
 }
 
 #controls-panel h1 {
@@ -239,20 +242,24 @@ body {
     font-weight: 700;
 }
 
-/* Scrollbar styling for anomalies panel */
-#anomalies-panel::-webkit-scrollbar {
+/* Scrollbar styling for side panels */
+#anomalies-panel::-webkit-scrollbar,
+#controls-panel::-webkit-scrollbar {
     width: 6px;
 }
 
-#anomalies-panel::-webkit-scrollbar-track {
+#anomalies-panel::-webkit-scrollbar-track,
+#controls-panel::-webkit-scrollbar-track {
     background: rgba(2, 24, 89, 0.5);
 }
 
-#anomalies-panel::-webkit-scrollbar-thumb {
+#anomalies-panel::-webkit-scrollbar-thumb,
+#controls-panel::-webkit-scrollbar-thumb {
     background: #03318C;
     border-radius: 3px;
 }
 
-#anomalies-panel::-webkit-scrollbar-thumb:hover {
+#anomalies-panel::-webkit-scrollbar-thumb:hover,
+#controls-panel::-webkit-scrollbar-thumb:hover {
     background: #0442BF;
 }
