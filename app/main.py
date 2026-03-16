@@ -980,7 +980,19 @@ async def analyse(
             status_code=404,
             detail="TLE data not found.",
         ) from exc
-    except ValueError as exc:
+        except ValueError as exc:
         raise HTTPException(
             status_code=422,
-            detail=
+            detail=f"Feature extraction error: {exc}"
+        ) from exc
+
+
+# ----------------------------------------------------------------
+# Cloud-ready launcher (Sprint 10)
+# ----------------------------------------------------------------
+if __name__ == "__main__":
+    import os
+    import uvicorn
+
+    port = int(os.environ.get("PORT", 7860))
+    uvicorn.run("app.main:app", host="0.0.0.0", port=port, reload=False)
