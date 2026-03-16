@@ -38,7 +38,6 @@ var currentFilter = "ALL";
 var showVectors   = true;
 var selectedSatelliteId = null;
 var currentData = [];
-
 // Sprint 9: orbital animation state
 var isPlaying = false;
 var animationFrameId = null;
@@ -112,7 +111,6 @@ var myGlobe = Globe()(document.getElementById("globeViz"))
   .showAtmosphere(true)
   .atmosphereColor("#0442BF")
   .atmosphereAltitude(0.25)
-
   // Points layer: satellites as small 3D dots at altitude
   .pointsData([])
   .pointLat("lat")
@@ -135,7 +133,6 @@ var myGlobe = Globe()(document.getElementById("globeViz"))
   .onPointClick(function(d) {
       handleSatelliteClick(d);
   })
-
   // Paths layer: vertical lines from Earth to satellite
   .pathsData([])
   .pathPointLat(function(pnt) { return pnt[0]; })
@@ -152,7 +149,6 @@ var myGlobe = Globe()(document.getElementById("globeViz"))
   .pathDashLength(0.3)
   .pathDashGap(0.15)
   .pathDashAnimateTime(0)
-
   // Rings layer (anomaly pulse)
   .ringsData([])
   .ringLat("lat")
