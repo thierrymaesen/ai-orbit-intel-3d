@@ -15,6 +15,12 @@ Sprint 12: Fix OSINT object_type filtering — CelesTrak uses abbreviated
 Sprint 13: Fix debris at zero — TLE source was GROUP=active only (no debris).
            Now downloads active + Fengyun-1C + Iridium-33 debris TLE groups
            and merges them so the SATCAT inner-join keeps debris objects.
+Sprint 14: Fix SATCAT returning empty — SATCAT_STATUS=onorbit URL returned
+           HTML (not JSON).  GROUP=1999-025 is invalid on CelesTrak.
+           Now fetches SATCAT per-group (active, fengyun-1c-debris,
+           iridium-33-debris, cosmos-2251-debris) and merges them.
+           Uses follow_redirects=False to detect bad URLs.
+           Adds time.sleep(1) between requests to avoid rate-limiting.
 """
 
 import json
@@ -52,7 +58,8 @@ logging.basicConfig(
 # ---------------------------------------------------------------------------
 BASE_DIR: Path = Path(__file__).resolve().parent      # .../app/
 PROJECT_ROOT: Path = BASE_DIR.parent                  # .../ai-orbit-intel-3d/
-DEFAULT_DATA_DIR: Path = PROJECT_ROOT / "data"        # Ensure the data directory exists at import time (Docker, HF, local, CI)
+DEFAULT_DATA_DIR: Path = PROJECT_ROOT / "data"
+# Ensure the data directory exists at import time (Docker, HF, local, CI)
 DEFAULT_DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 ts = load.timescale()
@@ -71,29 +78,24 @@ HTTP_HEADERS: Dict[str, str] = {
 HTTP_TIMEOUT: float = 60.0  # generous timeout for cloud cold-starts
 
 # ---------------------------------------------------------------------------
-# Sprint 12 fix: Use ONORBIT query instead of GROUP=active so that the
-# SATCAT includes debris, rocket bodies, and unknown objects — not just
-# active payloads.
+# Sprint 14 fix: CelesTrak group names used for BOTH TLE and SATCAT fetches.
+# - "1999-025" is INVALID (redirects on CelesTrak) → use "fengyun-1c-debris"
+# - SATCAT_STATUS=onorbit is INVALID (returns HTML) → fetch per-group instead
+# - follow_redirects=False to detect broken URLs immediately
 # ---------------------------------------------------------------------------
-SATCAT_URL: str = (
-    "https://celestrak.org/satcat/records.php?SATCAT_STATUS=onorbit&FORMAT=json"
-)
-
-# ---------------------------------------------------------------------------
-# Sprint 13 fix: Multiple TLE sources to include debris objects.
-# GROUP=active only contains operational payloads — no debris.
-# We now download additional debris groups and merge them.
-# ---------------------------------------------------------------------------
-CELESTRAK_TLE_URLS: List[str] = [
-    # 1) Active (operational) satellites
-    "https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle",
-    # 2) Fengyun-1C debris (2007 Chinese ASAT test — ~3,400 tracked pieces)
-    "https://celestrak.org/NORAD/elements/gp.php?GROUP=1999-025&FORMAT=tle",
-    # 3) Iridium-33 / Cosmos-2251 collision debris (~2,000 tracked pieces)
-    "https://celestrak.org/NORAD/elements/gp.php?GROUP=iridium-33-debris&FORMAT=tle",
-    # 4) Cosmos-2251 debris
-    "https://celestrak.org/NORAD/elements/gp.php?GROUP=cosmos-2251-debris&FORMAT=tle",
+CELESTRAK_TLE_GROUPS: List[str] = [
+    "active",               # operational satellites (~9 000 PAY)
+    "fengyun-1c-debris",    # Fengyun-1C ASAT debris (~1 800 on-orbit)
+    "iridium-33-debris",    # Iridium-33 collision debris (~600)
+    "cosmos-2251-debris",   # Cosmos-2251 collision debris (~1 700)
 ]
+
+CELESTRAK_GP_BASE: str = (
+    "https://celestrak.org/NORAD/elements/gp.php"
+)
+CELESTRAK_SATCAT_BASE: str = (
+    "https://celestrak.org/satcat/records.php"
+)
 
 TLE_FILENAME: str = "active_satellites.txt"
 SATCAT_CACHE_FILE: str = "satcat_cache.json"
@@ -191,7 +193,7 @@ def normalise_object_type(raw: str) -> str:
 # ----------------------------------------------------------------
 class HealthResponse(BaseModel):
     status: str = Field(..., examples=["ok"])
-    version: str = Field(..., examples=["1.3.0"])
+    version: str = Field(..., examples=["1.4.0"])
     satellites_loaded: int = Field(..., examples=[14000])
     anomalies_detected: int = Field(..., examples=[700])
 
@@ -255,35 +257,19 @@ class IngestResponse(BaseModel):
 
 
 # --------------------------------------------------------------------------
-# Sprint 13: Robust multi-source TLE download with merge, User-Agent,
-# retry, and cache fallback.
+# Sprint 14: Robust multi-source TLE download with merge, dedup,
+# redirect detection, rate-limit delay, and cache fallback.
 # --------------------------------------------------------------------------
 def download_tle_robust(data_dir: Path) -> Path:
     """Download TLE data from multiple CelesTrak groups and merge them.
 
-    Sprint 13 fix: Instead of only GROUP=active (which contains zero debris),
-    we now iterate over CELESTRAK_TLE_URLS (active + major debris groups)
-    and concatenate all TLE text into a single file.
-
-    Strategy:
-      1. For each URL in CELESTRAK_TLE_URLS, download TLE text with a
-         professional User-Agent header.
-      2. Concatenate all successful responses into one combined TLE file.
-      3. On ANY individual failure, log a warning but continue with the
-         other sources.
-      4. If ALL downloads fail, fall back to the existing cached file.
-      5. If no cache exists either, raise FileNotFoundError.
-
-    Returns:
-        Path to the merged TLE file (freshly downloaded or cached).
-
-    Raises:
-        FileNotFoundError: No live data AND no cached file available.
+    Uses CELESTRAK_TLE_GROUPS with follow_redirects=False so that
+    invalid group names (which CelesTrak redirects to HTML) are
+    detected and skipped instead of silently poisoning the data.
     """
     data_dir.mkdir(parents=True, exist_ok=True)
     final_path: Path = data_dir / TLE_FILENAME
 
-    # --- Attempt live downloads from all TLE sources ---
     all_tle_lines: List[str] = []
     seen_norad_ids: set = set()
     success_count: int = 0
@@ -292,32 +278,44 @@ def download_tle_robust(data_dir: Path) -> Path:
         with httpx.Client(
             timeout=HTTP_TIMEOUT,
             headers=HTTP_HEADERS,
-            follow_redirects=True,
+            follow_redirects=False,
         ) as client:
-            for url in CELESTRAK_TLE_URLS:
+            for group in CELESTRAK_TLE_GROUPS:
+                url = f"{CELESTRAK_GP_BASE}?GROUP={group}&FORMAT=tle"
                 try:
-                    logger.info("Downloading TLE from: %s", url)
+                    logger.info("Downloading TLE group '%s' ...", group)
                     resp = client.get(url)
+
+                    # CelesTrak redirects invalid groups to an HTML doc page
+                    if resp.is_redirect or resp.status_code in (
+                        301, 302, 303, 307, 308,
+                    ):
+                        logger.warning(
+                            "TLE group '%s' redirected (%d) — invalid group, skipping.",
+                            group,
+                            resp.status_code,
+                        )
+                        continue
+
                     resp.raise_for_status()
                     content = resp.text.strip()
 
                     if not content or len(content) < 50:
                         logger.warning(
-                            "Empty/short response from %s -- skipping.", url
+                            "TLE group '%s': empty/short response — skipping.",
+                            group,
                         )
                         continue
 
-                    # De-duplicate: parse TLE triplets and skip if NORAD ID
-                    # already seen (a satellite could appear in two groups).
+                    # --- Parse & deduplicate TLE triplets ---
                     lines = content.splitlines()
                     i = 0
-                    new_lines_count = 0
+                    new_count = 0
                     while i + 2 < len(lines):
                         line0 = lines[i].strip()
                         line1 = lines[i + 1].strip()
                         line2 = lines[i + 2].strip()
 
-                        # Basic TLE triplet validation
                         if line1.startswith("1 ") and line2.startswith("2 "):
                             try:
                                 norad_id = int(line1[2:7].strip())
@@ -326,34 +324,31 @@ def download_tle_robust(data_dir: Path) -> Path:
 
                             if norad_id and norad_id not in seen_norad_ids:
                                 seen_norad_ids.add(norad_id)
-                                all_tle_lines.append(line0)
-                                all_tle_lines.append(line1)
-                                all_tle_lines.append(line2)
-                                new_lines_count += 1
+                                all_tle_lines.extend([line0, line1, line2])
+                                new_count += 1
                             i += 3
                         else:
-                            # Skip malformed line and try next
                             i += 1
 
                     logger.info(
-                        "  -> %d new objects from %s (skipped %d duplicates).",
-                        new_lines_count,
-                        url.split("GROUP=")[1].split("&")[0] if "GROUP=" in url else url,
-                        (len(lines) // 3) - new_lines_count,
+                        "  -> TLE '%s': %d new objects added.",
+                        group,
+                        new_count,
                     )
                     success_count += 1
 
+                    # Polite delay to avoid CelesTrak rate-limiting
+                    time.sleep(1)
+
                 except Exception as url_exc:
                     logger.warning(
-                        "TLE download FAILED for %s: %s -- continuing with other sources.",
-                        url,
+                        "TLE download FAILED for group '%s': %s — continuing.",
+                        group,
                         url_exc,
                     )
 
     except Exception as exc:
-        logger.warning(
-            "HTTP client error during TLE downloads: %s", exc
-        )
+        logger.warning("HTTP client error during TLE downloads: %s", exc)
 
     # --- Write merged TLE file ---
     if all_tle_lines:
@@ -363,7 +358,7 @@ def download_tle_robust(data_dir: Path) -> Path:
         tmp_path.replace(final_path)
         total_objects = len(all_tle_lines) // 3
         logger.info(
-            "TLE data merged & saved: %s (%d objects from %d sources, %d bytes)",
+            "TLE merged & saved: %s (%d objects from %d groups, %d bytes)",
             final_path,
             total_objects,
             success_count,
@@ -371,8 +366,8 @@ def download_tle_robust(data_dir: Path) -> Path:
         )
         return final_path
 
-    # --- Fallback: use cached file ---
-    logger.warning("ALL TLE downloads failed -- checking local cache...")
+    # --- Fallback: cached file ---
+    logger.warning("ALL TLE downloads failed — checking local cache...")
     if final_path.exists() and final_path.stat().st_size > 100:
         age_hours = (time.time() - final_path.stat().st_mtime) / 3600
         logger.warning(
@@ -382,15 +377,13 @@ def download_tle_robust(data_dir: Path) -> Path:
         )
         return final_path
 
-    # --- No data at all ---
     raise FileNotFoundError(
-        f"TLE download failed and no cached file found at {final_path}. "
-        "The application will start with 0 satellites."
+        f"TLE download failed and no cached file at {final_path}."
     )
 
 
 # --------------------------------------------------------------------------
-# Sprint 11 + Sprint 12 fix: Robust SATCAT download with normalisation
+# Sprint 12: Parse SATCAT records into a lookup dict
 # --------------------------------------------------------------------------
 def _parse_satcat_records(records: list) -> Dict[int, Dict[str, str]]:
     """Parse a list of CelesTrak SATCAT JSON records into a lookup dict.
@@ -416,67 +409,140 @@ def _parse_satcat_records(records: list) -> Dict[int, Dict[str, str]]:
     return lookup
 
 
+# --------------------------------------------------------------------------
+# Sprint 14: Multi-group SATCAT download with merge, redirect detection,
+# Content-Type check, rate-limit delay, and cache fallback.
+# --------------------------------------------------------------------------
 def fetch_satcat(data_dir: Path) -> Dict[int, Dict[str, str]]:
-    """Download SATCAT JSON from CelesTrak with proper headers.
+    """Download SATCAT records for each TLE group and merge them.
 
-    Falls back to a local JSON cache if the live download fails.
-    Returns an empty dict (never crashes) if both fail.
+    Sprint 14 fix: The old single URL (SATCAT_STATUS=onorbit) returned
+    HTML instead of JSON — CelesTrak does not support that parameter.
+    Now we fetch satcat/records.php?GROUP=<name>&FORMAT=json for each
+    group in CELESTRAK_TLE_GROUPS and merge the results.
     """
-    logger.info("Downloading SATCAT from %s ...", SATCAT_URL)
     cache_path: Path = data_dir / SATCAT_CACHE_FILE
+    merged_lookup: Dict[int, Dict[str, str]] = {}
+    all_records: list = []
+    success_count: int = 0
+
     try:
         with httpx.Client(
             timeout=HTTP_TIMEOUT,
             headers=HTTP_HEADERS,
-            follow_redirects=True,
+            follow_redirects=False,
         ) as client:
-            resp = client.get(SATCAT_URL)
-            resp.raise_for_status()
-            records = resp.json()
+            for group in CELESTRAK_TLE_GROUPS:
+                url = f"{CELESTRAK_SATCAT_BASE}?GROUP={group}&FORMAT=json"
+                try:
+                    logger.info("Downloading SATCAT for group '%s' ...", group)
+                    resp = client.get(url)
 
-        lookup = _parse_satcat_records(records)
-        logger.info("SATCAT loaded: %d records.", len(lookup))
+                    # CelesTrak redirects invalid groups to an HTML page
+                    if resp.is_redirect or resp.status_code in (
+                        301, 302, 303, 307, 308,
+                    ):
+                        logger.warning(
+                            "SATCAT group '%s' redirected (%d) — skipping.",
+                            group,
+                            resp.status_code,
+                        )
+                        continue
 
-        # Log unique object types for debugging
-        unique_types = set(v["object_type"] for v in lookup.values())
+                    resp.raise_for_status()
+
+                    # Extra safety: reject HTML responses
+                    ct = resp.headers.get("content-type", "")
+                    if "html" in ct.lower():
+                        logger.warning(
+                            "SATCAT group '%s' returned HTML (not JSON) — skipping.",
+                            group,
+                        )
+                        continue
+
+                    records = resp.json()
+
+                    if not isinstance(records, list) or len(records) == 0:
+                        logger.warning(
+                            "SATCAT group '%s': empty or non-list response.",
+                            group,
+                        )
+                        continue
+
+                    group_lookup = _parse_satcat_records(records)
+                    merged_lookup.update(group_lookup)
+                    all_records.extend(records)
+                    success_count += 1
+
+                    # Per-group stats for debugging
+                    deb = sum(
+                        1
+                        for v in group_lookup.values()
+                        if v["object_type"] == "DEBRIS"
+                    )
+                    pay = sum(
+                        1
+                        for v in group_lookup.values()
+                        if v["object_type"] == "PAYLOAD"
+                    )
+                    logger.info(
+                        "  -> SATCAT '%s': %d records (%d PAYLOAD, %d DEBRIS).",
+                        group,
+                        len(group_lookup),
+                        pay,
+                        deb,
+                    )
+
+                    # Polite delay
+                    time.sleep(1)
+
+                except Exception as grp_exc:
+                    logger.warning(
+                        "SATCAT download FAILED for group '%s': %s — continuing.",
+                        group,
+                        grp_exc,
+                    )
+
+    except Exception as exc:
+        logger.warning("HTTP client error during SATCAT downloads: %s", exc)
+
+    if merged_lookup:
+        logger.info(
+            "SATCAT merged: %d total records from %d groups.",
+            len(merged_lookup),
+            success_count,
+        )
+        unique_types = set(v["object_type"] for v in merged_lookup.values())
         logger.info("SATCAT unique object_types (normalised): %s", unique_types)
 
         # Persist cache for future fallback
         try:
             cache_path.write_text(
-                json.dumps(records, ensure_ascii=False),
+                json.dumps(all_records, ensure_ascii=False),
                 encoding="utf-8",
             )
             logger.info("SATCAT cache saved to %s", cache_path)
         except Exception as cache_exc:
             logger.warning("Could not save SATCAT cache: %s", cache_exc)
 
-        return lookup
+        return merged_lookup
 
-    except Exception as exc:
-        logger.warning(
-            "Live SATCAT download FAILED: %s -- checking cache...",
-            exc,
-        )
-        # --- Fallback: local cache ---
-        if cache_path.exists():
-            try:
-                records = json.loads(cache_path.read_text(encoding="utf-8"))
-                lookup = _parse_satcat_records(records)
-                logger.warning(
-                    "Using CACHED SATCAT: %d records from %s",
-                    len(lookup),
-                    cache_path,
-                )
-                return lookup
-            except Exception as cache_exc:
-                logger.error("SATCAT cache read failed: %s", cache_exc)
+    # --- Fallback: local cache ---
+    logger.warning("All SATCAT downloads failed — checking cache...")
+    if cache_path.exists():
+        try:
+            records = json.loads(cache_path.read_text(encoding="utf-8"))
+            lookup = _parse_satcat_records(records)
+            logger.warning("Using CACHED SATCAT: %d records", len(lookup))
+            return lookup
+        except Exception as cache_exc:
+            logger.error("SATCAT cache read failed: %s", cache_exc)
 
-        logger.error(
-            "SATCAT unavailable (no live data, no cache). "
-            "Owner/object_type will show UNKNOWN."
-        )
-        return {}
+    logger.error(
+        "SATCAT unavailable (no live data, no cache). "
+        "Owner/object_type will show UNKNOWN."
+    )
+    return {}
 
 
 # --------------------------------------------------------------------------
@@ -512,7 +578,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.info("[2/5] Downloading SATCAT (owner & object type)...")
         _state["satcat_lookup"] = fetch_satcat(data_dir=DEFAULT_DATA_DIR)
 
-        # --- Sprint 13: Log debris / rocket body counts for verification ---
+        # --- Sprint 14: Log debris / rocket body counts for verification ---
         satcat = _state["satcat_lookup"]
         debris_in_satcat = sum(
             1 for v in satcat.values() if v["object_type"] == "DEBRIS"
@@ -638,9 +704,9 @@ app = FastAPI(
     title="AI-Orbit Intelligence 3D",
     description=(
         "Real-time orbital anomaly detection API. "
-        "Sprint 13 - Multi-source TLE for debris visibility."
+        "Sprint 14 — Multi-group SATCAT + TLE for debris visibility."
     ),
-    version="1.3.0",
+    version="1.4.0",
     lifespan=lifespan,
 )
 
@@ -674,7 +740,7 @@ async def health() -> HealthResponse:
     n_anomalies = int(df["is_anomaly"].sum()) if df is not None else 0
     return HealthResponse(
         status="ok",
-        version="1.3.0",
+        version="1.4.0",
         satellites_loaded=len(_state.get("satellites_tle", [])),
         anomalies_detected=n_anomalies,
     )
@@ -917,68 +983,4 @@ async def analyse(
     except ValueError as exc:
         raise HTTPException(
             status_code=422,
-            detail=str(exc),
-        ) from exc
-
-
-@app.get(
-    "/api/v1/anomalies",
-    response_model=List[SatelliteAnomaly],
-    tags=["results"],
-)
-async def get_anomalies(
-    top_n: int = Query(default=10, ge=1, le=500),
-    min_score: Optional[float] = Query(
-        default=None, ge=0.0, le=1.0
-    ),
-) -> List[SatelliteAnomaly]:
-    report = _state.get("last_report")
-    if report is None:
-        raise HTTPException(
-            status_code=404,
-            detail="No analysis results available.",
-        )
-    results = sorted(
-        report.satellites,
-        key=lambda s: s.anomaly_score,
-        reverse=True,
-    )
-    if min_score is not None:
-        results = [s for s in results if s.anomaly_score >= min_score]
-    return results[:top_n]
-
-
-@app.get(
-    "/api/v1/satellite/{norad_id}",
-    response_model=SatelliteAnomaly,
-    tags=["results"],
-)
-async def get_satellite(norad_id: int) -> SatelliteAnomaly:
-    report = _state.get("last_report")
-    if report is None:
-        raise HTTPException(
-            status_code=404,
-            detail="No analysis results available.",
-        )
-    for sat in report.satellites:
-        if sat.norad_id == norad_id:
-            return sat
-    raise HTTPException(
-        status_code=404,
-        detail=f"Satellite {norad_id} not found.",
-    )
-
-
-# ----------------------------------------------------------------
-# Cloud-ready launcher (Sprint 10)
-# ----------------------------------------------------------------
-if __name__ == "__main__":
-    import uvicorn
-
-    port = int(os.environ.get("PORT", 7860))
-    uvicorn.run(
-        "app.main:app",
-        host="0.0.0.0",
-        port=port,
-        reload=False,
-    )
+            detail=
