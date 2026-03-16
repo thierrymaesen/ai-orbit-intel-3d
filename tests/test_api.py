@@ -1,13 +1,13 @@
 """Tests for AI-Orbit Intelligence 3D API.
 
 Sprint 10: Automated test suite using pytest + FastAPI TestClient.
-Sprint 11: Updated version assertions (1.0.0 -> 1.2.0),
+Sprint 11: Updated version assertions (1.0.0 -> 1.3.0),
            updated /api/positions test to expect 200 in degraded mode.
 Tests run without live TLE data (satellites may not be loaded).
 """
 
 import pytest
-from fastapi.testclient import TestClient
+from fastapi.testclient import TestClienth
 
 from app.main import app
 
@@ -31,7 +31,7 @@ class TestHealthCheck:
     def test_health_version(self):
         data = client.get("/health").json()
         assert "version" in data
-        assert data["version"] == "1.2.0"
+        assert data["version"] == "1.3.0"
 
 
 # ----------------------------------------------------------------
@@ -105,4 +105,4 @@ class TestDocs:
         assert response.status_code == 200
         data = response.json()
         assert data["info"]["title"] == "AI-Orbit Intelligence 3D"
-        assert data["info"]["version"] == "1.2.0"
+        assert data["info"]["version"] == "1.3.0"
