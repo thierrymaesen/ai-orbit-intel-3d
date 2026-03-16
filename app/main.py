@@ -923,9 +923,7 @@ async def ingest_tle(
 )
 async def analyse(
     data_dir: str = Query(default="data"),
-    contamination: float = Query(
-        default=0.05, ge=0.001, le=0.5
-    ),
+    contamination: float = Query(default=0.05, ge=0.001, le=0.5),
 ) -> AnomalyReport:
     try:
         satellites = load_tle_objects(data_dir=Path(data_dir))
@@ -949,20 +947,12 @@ async def analyse(
                 SatelliteAnomaly(
                     name=row["name"],
                     norad_id=int(norad_id),
-                    inclination=round(
-                        float(row["inclination"]), 6
-                    ),
-                    eccentricity=round(
-                        float(row["eccentricity"]), 6
-                    ),
-                    mean_motion=round(
-                        float(row["mean_motion"]), 6
-                    ),
+                    inclination=round(float(row["inclination"]), 6),
+                    eccentricity=round(float(row["eccentricity"]), 6),
+                    mean_motion=round(float(row["mean_motion"]), 6),
                     bstar=float(row["bstar"]),
                     is_anomaly=bool(row["is_anomaly"]),
-                    anomaly_score=round(
-                        float(row["anomaly_score"]), 4
-                    ),
+                    anomaly_score=round(float(row["anomaly_score"]), 4),
                 )
             )
 
@@ -980,10 +970,10 @@ async def analyse(
             status_code=404,
             detail="TLE data not found.",
         ) from exc
-        except ValueError as exc:
+    except ValueError as exc:
         raise HTTPException(
             status_code=422,
-            detail=f"Feature extraction error: {exc}"
+            detail=f"Feature extraction error: {exc}",
         ) from exc
 
 
