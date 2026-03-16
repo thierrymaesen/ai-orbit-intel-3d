@@ -263,3 +263,115 @@ body {
 #controls-panel::-webkit-scrollbar-thumb:hover {
     background: #0442BF;
 }
+
+/* ----------------------------------------------------------------
+   Sprint 10: OSINT Telemetry Card — Smart Fallback
+   Terminal / Cyber / OSINT aesthetic for Wikipedia 404 cases.
+   ---------------------------------------------------------------- */
+
+.osint-card {
+	    font-family: 'Courier New', 'Consolas', 'Monaco', monospace;
+	    background: linear-gradient(135deg, rgba(2, 24, 89, 0.95) 0%, rgba(3, 49, 140, 0.85) 100%);
+	    border: 1px solid #F2C641;
+	    border-left: 3px solid #F2C641;
+	    border-radius: 4px;
+	    padding: 14px 16px;
+	    margin-top: 10px;
+	    color: #F2F2F2;
+	    position: relative;
+	    overflow: hidden;
+}
+
+/* Subtle scan-line overlay effect */
+.osint-card::before {
+	    content: '';
+	    position: absolute;
+	    top: 0;
+	    left: 0;
+	    right: 0;
+	    bottom: 0;
+	    background: repeating-linear-gradient(
+			        0deg,
+			        transparent,
+			        transparent 2px,
+			        rgba(77, 166, 255, 0.03) 2px,
+			        rgba(77, 166, 255, 0.03) 4px
+			    );
+	    pointer-events: none;
+	    z-index: 1;
+}
+
+.osint-header {
+	    display: flex;
+	    flex-direction: column;
+	    gap: 4px;
+	    margin-bottom: 12px;
+	    padding-bottom: 10px;
+	    border-bottom: 1px dashed rgba(242, 198, 65, 0.4);
+	    position: relative;
+	    z-index: 2;
+}
+
+.osint-tag {
+	    font-size: 0.78rem;
+	    font-weight: 700;
+	    color: #F2C641;
+	    letter-spacing: 0.1em;
+	    text-transform: uppercase;
+}
+
+.osint-subtitle {
+	    font-size: 0.65rem;
+	    color: rgba(242, 198, 65, 0.7);
+	    letter-spacing: 0.03em;
+}
+
+.osint-table {
+	    width: 100%;
+	    border-collapse: collapse;
+	    position: relative;
+	    z-index: 2;
+}
+
+.osint-table tr {
+	    border-bottom: 1px solid rgba(3, 49, 140, 0.6);
+}
+
+.osint-table tr:last-child {
+	    border-bottom: none;
+}
+
+.osint-label {
+	    font-size: 0.68rem;
+	    color: #4DA6FF;
+	    text-transform: uppercase;
+	    letter-spacing: 0.08em;
+	    padding: 5px 8px 5px 0;
+	    white-space: nowrap;
+	    vertical-align: top;
+	    width: 110px;
+	    opacity: 0.85;
+}
+
+.osint-value {
+	    font-size: 0.75rem;
+	    color: #F2F2F2;
+	    padding: 5px 0;
+	    letter-spacing: 0.02em;
+}
+
+.osint-norad {
+	    font-size: 0.65rem;
+	    color: rgba(77, 166, 255, 0.7);
+}
+
+/* AI Status styling */
+.osint-status-normal {
+	    color: #4DA6FF;
+}
+
+.osint-status-anomaly {
+	    color: #F2C641;
+	    font-weight: 700;
+	    text-shadow: 0 0 6px rgba(242, 198, 65, 0.4);
+}
