@@ -47,6 +47,22 @@ Accédez à l'application déployée sur Hugging Face Spaces :
 
 La démo charge le catalogue complet de satellites au démarrage, entraîne le modèle de détection d'anomalies et affiche tous les objets sur le globe 3D — l'ensemble du pipeline de démarrage à froid se termine en moins d'une minute.
 
+### 📸 Captures d'Écran
+
+<div align="center">
+
+#### Vue principale — Tableau de bord avec visualisation 3D complète
+Le globe 3D interactif affiche les positions en temps réel de plus de 17 000 objets spatiaux (satellites actifs, débris et corps de fusées). Le panneau de gauche présente les statistiques globales (satellites suivis et anomalies détectées), les filtres par type d'orbite (LEO, MEO, GEO) et les filtres OSINT stratégiques (propriétaire, type d'objet). Le panneau de droite liste les anomalies les plus sévères détectées par le modèle Isolation Forest, classées par score de sévérité.
+
+![Vue principale du tableau de bord AI Orbit Intel 3D](https://github.com/user-attachments/assets/3c85cf11-4d8c-4a18-a9bc-e4ab2cf85d76)
+
+#### Vue filtrée — Top 10 des anomalies orbitales
+Lorsque le filtre « Top 10 Anomalies » est activé, seuls les dix satellites les plus anormaux sont affichés sur le globe avec leurs trajectoires orbitales visibles. Cette vue permet aux analystes d'identifier rapidement les objets présentant un comportement orbital statistiquement inhabituel (décroissance orbitale anormale, orbites excentriques, mouvement moyen atypique).
+
+![Vue filtrée Top 10 anomalies AI Orbit Intel 3D](https://github.com/user-attachments/assets/8d51c7b0-d04b-4bc8-9de4-ad7a8aaa64a3)
+
+</div>
+
 ## ✨ Fonctionnalités Clés en Détail
 
 🛰️ Visualisation 3D Massive & Nuages de Débris — Le frontend exploite Globe.gl pour afficher les positions de plus de 17 000 objets spatiaux suivis simultanément. La plateforme intègre non seulement les satellites actifs (Payloads), mais traque également physiquement les plus grands essaims de débris orbitaux de l'histoire (collisions Iridium-33, Cosmos-2251 et essai ASAT Fengyun-1C).
@@ -246,6 +262,22 @@ Access the live application deployed on Hugging Face Spaces:
 ➡️ **[AI Orbit Intel 3D on Hugging Face Spaces](https://huggingface.co/spaces/thierrymaesen/ai-orbit-intel-3d)**
 
 The demo loads the full satellite catalogue on startup, trains the anomaly detection model, and renders all objects on the 3D globe — the entire cold-start pipeline completes in under a minute.
+
+### 📸 Screenshots
+
+<div align="center">
+
+#### Main View — Full 3D Visualization Dashboard
+The interactive 3D globe displays real-time positions of over 17,000 tracked space objects (active satellites, debris, and rocket bodies). The left panel shows global statistics (tracked satellites and detected anomalies), orbit type filters (LEO, MEO, GEO), and strategic OSINT filters (owner, object type). The right panel lists the most severe anomalies detected by the Isolation Forest model, ranked by severity score.
+
+![AI Orbit Intel 3D main dashboard view](https://github.com/user-attachments/assets/3c85cf11-4d8c-4a18-a9bc-e4ab2cf85d76)
+
+#### Filtered View — Top 10 Orbital Anomalies
+When the "Top 10 Anomalies" filter is activated, only the ten most anomalous satellites are displayed on the globe with their visible orbital trajectories. This view allows analysts to quickly identify objects exhibiting statistically unusual orbital behaviour (abnormal orbital decay, eccentric orbits, atypical mean motion).
+
+![AI Orbit Intel 3D Top 10 anomalies filtered view](https://github.com/user-attachments/assets/8d51c7b0-d04b-4bc8-9de4-ad7a8aaa64a3)
+
+</div>
 
 ## ✨ Key Features in Detail
 
