@@ -1,5 +1,5 @@
 /* ================================================================
-   AI-Orbit Intelligence 3D — Stylesheet  (Sprint 6)
+   AI-Orbit Intelligence 3D — Stylesheet  (Sprint 11)
    Color charter:
        PRIMARY_DARK    #021859
        BRILLIANT_BLUE  #0442BF
@@ -37,7 +37,6 @@ body {
 /* ----------------------------------------------------------------
    Left Panel — Controls, Filters, Stats
    ---------------------------------------------------------------- */
-
 #controls-panel {
     position: absolute;
     top: 20px;
@@ -53,9 +52,8 @@ body {
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     box-shadow: 0 4px 30px rgba(0, 0, 0, 0.4);
-	max-height: 90vh;
+    max-height: 90vh;
     overflow-y: auto;
-
 }
 
 #controls-panel h1 {
@@ -77,7 +75,6 @@ body {
 /* ----------------------------------------------------------------
    Filter buttons
    ---------------------------------------------------------------- */
-
 .filters-group {
     display: flex;
     flex-wrap: wrap;
@@ -109,7 +106,6 @@ body {
 /* ----------------------------------------------------------------
    Stat Cards
    ---------------------------------------------------------------- */
-
 .stats-grid {
     display: flex;
     flex-direction: column;
@@ -180,7 +176,6 @@ body {
 /* ----------------------------------------------------------------
    Right Panel — Anomalies List
    ---------------------------------------------------------------- */
-
 #anomalies-panel {
     position: absolute;
     top: 20px;
@@ -268,110 +263,213 @@ body {
    Sprint 10: OSINT Telemetry Card — Smart Fallback
    Terminal / Cyber / OSINT aesthetic for Wikipedia 404 cases.
    ---------------------------------------------------------------- */
-
 .osint-card {
-	    font-family: 'Courier New', 'Consolas', 'Monaco', monospace;
-	    background: linear-gradient(135deg, rgba(2, 24, 89, 0.95) 0%, rgba(3, 49, 140, 0.85) 100%);
-	    border: 1px solid #F2C641;
-	    border-left: 3px solid #F2C641;
-	    border-radius: 4px;
-	    padding: 14px 16px;
-	    margin-top: 10px;
-	    color: #F2F2F2;
-	    position: relative;
-	    overflow: hidden;
+    font-family: 'Courier New', 'Consolas', 'Monaco', monospace;
+    background: linear-gradient(135deg, rgba(2, 24, 89, 0.95) 0%, rgba(3, 49, 140, 0.85) 100%);
+    border: 1px solid #F2C641;
+    border-left: 3px solid #F2C641;
+    border-radius: 4px;
+    padding: 14px 16px;
+    margin-top: 10px;
+    color: #F2F2F2;
+    position: relative;
+    overflow: hidden;
 }
 
 /* Subtle scan-line overlay effect */
 .osint-card::before {
-	    content: '';
-	    position: absolute;
-	    top: 0;
-	    left: 0;
-	    right: 0;
-	    bottom: 0;
-	    background: repeating-linear-gradient(
-			        0deg,
-			        transparent,
-			        transparent 2px,
-			        rgba(77, 166, 255, 0.03) 2px,
-			        rgba(77, 166, 255, 0.03) 4px
-			    );
-	    pointer-events: none;
-	    z-index: 1;
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(77, 166, 255, 0.03) 2px,
+        rgba(77, 166, 255, 0.03) 4px
+    );
+    pointer-events: none;
+    z-index: 1;
 }
 
 .osint-header {
-	    display: flex;
-	    flex-direction: column;
-	    gap: 4px;
-	    margin-bottom: 12px;
-	    padding-bottom: 10px;
-	    border-bottom: 1px dashed rgba(242, 198, 65, 0.4);
-	    position: relative;
-	    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 12px;
+    padding-bottom: 10px;
+    border-bottom: 1px dashed rgba(242, 198, 65, 0.4);
+    position: relative;
+    z-index: 2;
 }
 
 .osint-tag {
-	    font-size: 0.78rem;
-	    font-weight: 700;
-	    color: #F2C641;
-	    letter-spacing: 0.1em;
-	    text-transform: uppercase;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #F2C641;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
 }
 
 .osint-subtitle {
-	    font-size: 0.65rem;
-	    color: rgba(242, 198, 65, 0.7);
-	    letter-spacing: 0.03em;
+    font-size: 0.65rem;
+    color: rgba(242, 198, 65, 0.7);
+    letter-spacing: 0.03em;
 }
 
 .osint-table {
-	    width: 100%;
-	    border-collapse: collapse;
-	    position: relative;
-	    z-index: 2;
+    width: 100%;
+    border-collapse: collapse;
+    position: relative;
+    z-index: 2;
 }
 
 .osint-table tr {
-	    border-bottom: 1px solid rgba(3, 49, 140, 0.6);
+    border-bottom: 1px solid rgba(3, 49, 140, 0.6);
 }
 
 .osint-table tr:last-child {
-	    border-bottom: none;
+    border-bottom: none;
 }
 
 .osint-label {
-	    font-size: 0.68rem;
-	    color: #4DA6FF;
-	    text-transform: uppercase;
-	    letter-spacing: 0.08em;
-	    padding: 5px 8px 5px 0;
-	    white-space: nowrap;
-	    vertical-align: top;
-	    width: 110px;
-	    opacity: 0.85;
+    font-size: 0.68rem;
+    color: #4DA6FF;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 5px 8px 5px 0;
+    white-space: nowrap;
+    vertical-align: top;
+    width: 110px;
+    opacity: 0.85;
 }
 
 .osint-value {
-	    font-size: 0.75rem;
-	    color: #F2F2F2;
-	    padding: 5px 0;
-	    letter-spacing: 0.02em;
+    font-size: 0.75rem;
+    color: #F2F2F2;
+    padding: 5px 0;
+    letter-spacing: 0.02em;
 }
 
 .osint-norad {
-	    font-size: 0.65rem;
-	    color: rgba(77, 166, 255, 0.7);
+    font-size: 0.65rem;
+    color: rgba(77, 166, 255, 0.7);
 }
 
 /* AI Status styling */
 .osint-status-normal {
-	    color: #4DA6FF;
+    color: #4DA6FF;
 }
 
 .osint-status-anomaly {
-	    color: #F2C641;
-	    font-weight: 700;
-	    text-shadow: 0 0 6px rgba(242, 198, 65, 0.4);
+    color: #F2C641;
+    font-weight: 700;
+    text-shadow: 0 0 6px rgba(242, 198, 65, 0.4);
+}
+
+/* ----------------------------------------------------------------
+   Sprint 11: Search Bar — Quick OSINT Lookup
+   ---------------------------------------------------------------- */
+
+.search-bar-container {
+    display: flex;
+    gap: 0;
+    margin-bottom: 14px;
+    border: 1px solid #03318C;
+    border-radius: 4px;
+    overflow: hidden;
+    transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+.search-bar-container:focus-within {
+    border-color: #F2C641;
+    box-shadow: 0 0 8px rgba(242, 198, 65, 0.25);
+}
+
+.search-input {
+    flex: 1;
+    background: rgba(2, 24, 89, 0.8);
+    border: none;
+    color: #F2F2F2;
+    padding: 9px 12px;
+    font-size: 0.78rem;
+    font-family: 'Courier New', 'Consolas', monospace;
+    letter-spacing: 0.04em;
+    outline: none;
+}
+
+.search-input::placeholder {
+    color: rgba(242, 242, 242, 0.35);
+    font-style: italic;
+}
+
+.search-btn {
+    background: #0442BF;
+    border: none;
+    color: #F2C641;
+    padding: 9px 13px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.search-btn:hover {
+    background: #F2C641;
+    color: #021859;
+}
+
+/* Sprint 11: Search feedback flash */
+.search-bar-container.search-no-result {
+    border-color: #ff4444;
+    box-shadow: 0 0 10px rgba(255, 68, 68, 0.4);
+    animation: search-shake 0.4s ease;
+}
+
+@keyframes search-shake {
+    0%, 100% { transform: translateX(0); }
+    25%      { transform: translateX(-4px); }
+    75%      { transform: translateX(4px); }
+}
+
+.search-bar-container.search-found {
+    border-color: #00ff88;
+    box-shadow: 0 0 10px rgba(0, 255, 136, 0.3);
+}
+
+/* ----------------------------------------------------------------
+   Sprint 11: Export CSV Button
+   ---------------------------------------------------------------- */
+
+.export-csv-btn {
+    background: rgba(242, 198, 65, 0.08);
+    color: #F2C641;
+    font-family: 'Courier New', 'Consolas', monospace;
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    transition: background 0.2s, color 0.2s, box-shadow 0.2s;
+}
+
+.export-csv-btn:hover {
+    background: #F2C641;
+    color: #021859;
+    box-shadow: 0 0 12px rgba(242, 198, 65, 0.35);
+}
+
+.export-csv-btn:active {
+    transform: scale(0.97);
+}
+
+/* Export feedback flash */
+.export-csv-btn.export-success {
+    background: rgba(0, 255, 136, 0.2);
+    border-color: #00ff88 !important;
+    color: #00ff88;
 }

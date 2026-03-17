@@ -1,9 +1,7 @@
 /* ================================================================
-   AI-Orbit Intelligence 3D — Globe.gl Application (Sprint 10)
-
+   AI-Orbit Intelligence 3D — Globe.gl Application (Sprint 11)
    Full-scale catalogue, orbit-type filters, logarithmic visual
    altitude compression, interactive anomaly list.
-
    Sprint 7: Toggle Vectors, Top 10, Wiki Enrichment, Active
              Selection (RED), Footer, Paths to Earth.
    Sprint 8: Strategic OSINT Filters (Owner & Object Type),
@@ -14,7 +12,8 @@
    Sprint 10: Smart OSINT Fallback — generates a dynamic Telemetry
               Card when Wikipedia returns 404 or no extract.
               Auto-rotate disabled for stable camera during animation.
-
+   Sprint 11: Search Bar (quick name/NORAD lookup with zoom) and
+              Export CSV (client-side OSINT data download).
    Uses Globe.gl built-in pointsData + pathsData.
 ================================================================ */
 
@@ -23,13 +22,11 @@
 // -------------------------------------------------------------------
 var API_URL     = "/api/positions";
 var REFRESH_MS  = 5000;
-
 var COLOR_NORMAL   = "#4DA6FF";
 var COLOR_ANOMALY  = "#F2C641";
 var COLOR_SELECTED = "#FF0000";
 var COLOR_RING     = "rgba(242, 198, 65, 0.35)";
-
-var ORBIT_SPEED_FACTOR = 10; // Sprint 9: acceleration factor so motion is visible
+var ORBIT_SPEED_FACTOR = 10; 
 
 // -------------------------------------------------------------------
 // Global state
@@ -38,12 +35,11 @@ var currentFilter = "ALL";
 var showVectors   = true;
 var selectedSatelliteId = null;
 var currentData = [];
-// Sprint 9: orbital animation state
+
 var isPlaying = false;
 var animationFrameId = null;
 var lastFrameTime = null;
 
-/* FIX 1 — re-entrance guard: prevents concurrent fetchData calls */
 var isFetching = false;
 
 // -------------------------------------------------------------------
@@ -54,31 +50,29 @@ var elAnomaliesCount = document.getElementById("anomalies-count");
 var elStatus         = document.getElementById("status-text");
 var elAnomaliesList  = document.getElementById("anomalies-list");
 
-// Wiki modal refs
 var elWikiModal   = document.getElementById("wiki-modal");
 var elWikiClose   = document.getElementById("wiki-close");
 var elWikiTitle   = document.getElementById("wiki-title");
 var elWikiOwnerType = document.getElementById("wiki-owner-type");
 var elWikiContent = document.getElementById("wiki-content");
 
-// Sprint 8: Strategic filter refs
 var elFilterOwner = document.getElementById("filter-owner");
 var elFilterType  = document.getElementById("filter-type");
 
-// Sprint 9: Play/Pause button ref
 var elPlayOrbitBtn = document.getElementById("play-orbit-btn");
 
+var elSearchInput     = document.getElementById("search-input");
+var elSearchBtn       = document.getElementById("search-btn");
+
+var elExportCsvBtn = document.getElementById("export-csv-btn");
+
 // -------------------------------------------------------------------
-// Visual altitude: logarithmic compression
+// Visual altitude
 // -------------------------------------------------------------------
 function visualAltitude(altKm) {
     return Math.log10(altKm + 1) / 5;
 }
 
-// -------------------------------------------------------------------
-// Build paths data: lines from Earth surface to satellite position
-// Only generated when showVectors is true.
-// -------------------------------------------------------------------
 function buildPathsData(points) {
     if (!showVectors) return [];
     return points.map(function(d) {
@@ -93,16 +87,13 @@ function buildPathsData(points) {
     });
 }
 
-// -------------------------------------------------------------------
-// Sprint 9: Update vectors helper (called during animation loop)
-// -------------------------------------------------------------------
 function updateVectors() {
     var paths = buildPathsData(currentData);
     myGlobe.pathsData(paths);
 }
 
 // -------------------------------------------------------------------
-// Globe initialisation — using pointsData + pathsData
+// Globe initialisation 
 // -------------------------------------------------------------------
 var myGlobe = Globe()(document.getElementById("globeViz"))
   .globeImageUrl("//unpkg.com/three-globe/example/img/earth-blue-marble.jpg")
@@ -111,7 +102,6 @@ var myGlobe = Globe()(document.getElementById("globeViz"))
   .showAtmosphere(true)
   .atmosphereColor("#0442BF")
   .atmosphereAltitude(0.25)
-  // Points layer: satellites as small 3D dots at altitude
   .pointsData([])
   .pointLat("lat")
   .pointLng("lng")
@@ -133,7 +123,6 @@ var myGlobe = Globe()(document.getElementById("globeViz"))
   .onPointClick(function(d) {
       handleSatelliteClick(d);
   })
-  // Paths layer: vertical lines from Earth to satellite
   .pathsData([])
   .pathPointLat(function(pnt) { return pnt[0]; })
   .pathPointLng(function(pnt) { return pnt[1]; })
@@ -149,7 +138,6 @@ var myGlobe = Globe()(document.getElementById("globeViz"))
   .pathDashLength(0.3)
   .pathDashGap(0.15)
   .pathDashAnimateTime(0)
-  // Rings layer (anomaly pulse)
   .ringsData([])
   .ringLat("lat")
   .ringLng("lng")
@@ -159,12 +147,11 @@ var myGlobe = Globe()(document.getElementById("globeViz"))
   .ringPropagationSpeed(2)
   .ringRepeatPeriod(1400);
 
-// Sprint 10: Auto-rotation disabled — camera stays fixed during orbital animation
 myGlobe.controls().autoRotate = false;
 myGlobe.controls().autoRotateSpeed = 0.3;
 
 // -------------------------------------------------------------------
-// Filter buttons (orbit type / anomalies)
+// Events & Filters
 // -------------------------------------------------------------------
 var filterButtons = document.querySelectorAll(".filter-btn[data-filter]");
 filterButtons.forEach(function(btn) {
@@ -176,12 +163,7 @@ filterButtons.forEach(function(btn) {
     });
 });
 
-// -------------------------------------------------------------------
-// Sprint 8: Strategic OSINT filter dropdowns
-// /* FIX 4 — debounce filter change events to avoid rapid-fire fetches */
-// -------------------------------------------------------------------
 var _filterDebounceTimer = null;
-
 function debouncedFetchData() {
     if (_filterDebounceTimer) clearTimeout(_filterDebounceTimer);
     _filterDebounceTimer = setTimeout(function() {
@@ -190,57 +172,38 @@ function debouncedFetchData() {
 }
 
 if (elFilterOwner) {
-    elFilterOwner.addEventListener("change", function() {
-        debouncedFetchData();
-    });
+    elFilterOwner.addEventListener("change", function() { debouncedFetchData(); });
 }
-
 if (elFilterType) {
-    elFilterType.addEventListener("change", function() {
-        debouncedFetchData();
-    });
+    elFilterType.addEventListener("change", function() { debouncedFetchData(); });
 }
 
-// -------------------------------------------------------------------
-// Toggle Vectors button
-// -------------------------------------------------------------------
 var toggleVectorsBtn = document.getElementById("toggle-vectors-btn");
 if (toggleVectorsBtn) {
     toggleVectorsBtn.addEventListener("click", function() {
         showVectors = !showVectors;
         toggleVectorsBtn.style.background = showVectors ? "rgba(242,198,65,0.2)" : "";
-
-        // Update point altitude to show/hide the vertical offset
         myGlobe.pointAltitude(function(d) {
             return showVectors ? visualAltitude(d.altitude) : 0.01;
         });
-
-        // Update paths: show or hide vector lines
         var paths = buildPathsData(currentData);
         myGlobe.pathsData(paths);
     });
 }
 
-// -------------------------------------------------------------------
-// Sprint 9: Play/Pause Orbit Animation
-// -------------------------------------------------------------------
 if (elPlayOrbitBtn) {
     elPlayOrbitBtn.addEventListener("click", function() {
         isPlaying = !isPlaying;
-
         if (isPlaying) {
-            // Performance guard: don't animate if too many satellites
             if (currentData.length >= 3000) {
-                alert("Please use filters to reduce the number of satellites (e.g. LEO or TOP10) before playing animation for better performance.");
+                alert("Please use filters to reduce the number of satellites before playing animation.");
                 isPlaying = false;
                 return;
             }
-
             elPlayOrbitBtn.innerHTML = "⏸ Pause Orbit";
             elPlayOrbitBtn.style.background = "rgba(242,198,65,0.2)";
             lastFrameTime = performance.now();
             animationFrameId = requestAnimationFrame(animateOrbits);
-
         } else {
             elPlayOrbitBtn.innerHTML = "▶ Play Orbit (Real-Time)";
             elPlayOrbitBtn.style.background = "";
@@ -253,91 +216,42 @@ if (elPlayOrbitBtn) {
     });
 }
 
-// -------------------------------------------------------------------
-// Sprint 9: Orbital Animation Loop
-// Uses requestAnimationFrame to update satellite positions each frame.
-// Approximation: longitude changes based on mean_motion.
-// A satellite with mean_motion = N revs/day moves N*360 degrees/day
-// relative to an inertial frame. Earth rotates ~360°/day too, so the
-// ground-track drift ≈ (mean_motion - 1) * 360° / 86400 per second.
-// We multiply by ORBIT_SPEED_FACTOR so it's visually perceptible.
-// Latitude oscillates using inclination for a simplified sinusoidal
-// ground-track approximation.
-// -------------------------------------------------------------------
 function animateOrbits(timestamp) {
     if (!isPlaying) return;
-
-    // Calculate elapsed seconds since last frame
-    if (lastFrameTime === null) {
-        lastFrameTime = timestamp;
-    }
-
+    if (lastFrameTime === null) lastFrameTime = timestamp;
     var deltaSec = (timestamp - lastFrameTime) / 1000.0;
     lastFrameTime = timestamp;
-
-    // Clamp delta to avoid huge jumps if tab was backgrounded
     if (deltaSec > 0.5) deltaSec = 0.016;
 
     for (var i = 0; i < currentData.length; i++) {
         var d = currentData[i];
         var mm = d.mean_motion || 0;
         var incl = d.inclination || 0;
-
-        if (mm === 0) continue; // no orbital data, skip
-
-        // Degrees per second that the satellite's ground-track longitude shifts
-        // (mean_motion - 1) accounts for Earth's own rotation (~1 rev/day)
+        if (mm === 0) continue; 
         var degPerSec = ((mm - 1) * 360.0) / 86400.0;
-
-        // Apply accelerated delta
         d.lng += degPerSec * deltaSec * ORBIT_SPEED_FACTOR;
-
-        // Wrap longitude to [-180, 180]
         if (d.lng > 180) d.lng -= 360;
         if (d.lng < -180) d.lng += 360;
 
-        // Simplified latitude oscillation using inclination
-        // We track a pseudo orbital phase per satellite; initialise if missing
         if (d._orbPhase === undefined) {
-            // Initialise phase from current latitude and inclination
-            if (incl > 0) {
-                d._orbPhase = Math.asin(Math.max(-1, Math.min(1, d.lat / incl)));
-            } else {
-                d._orbPhase = 0;
-            }
+            if (incl > 0) d._orbPhase = Math.asin(Math.max(-1, Math.min(1, d.lat / incl)));
+            else d._orbPhase = 0;
         }
-
-        // Orbital angular velocity in rad/sec
         var orbAngVel = (mm * 2 * Math.PI) / 86400.0;
         d._orbPhase += orbAngVel * deltaSec * ORBIT_SPEED_FACTOR;
-
-        // Keep phase bounded
         if (d._orbPhase > 2 * Math.PI) d._orbPhase -= 2 * Math.PI;
 
-        // Latitude = inclination * sin(phase) — simplified ground-track
         d.lat = incl * Math.sin(d._orbPhase);
-
-        // Clamp latitude to valid range
         if (d.lat > 90) d.lat = 90;
         if (d.lat < -90) d.lat = -90;
     }
-
-    // Push updated positions to the globe
     myGlobe.pointsData(currentData);
-
-    // Update vector lines if visible
-    if (showVectors) {
-        updateVectors();
-    }
-
-    // Request next frame
+    if (showVectors) updateVectors();
     animationFrameId = requestAnimationFrame(animateOrbits);
 }
 
 // -------------------------------------------------------------------
-// Sprint 10: Smart OSINT Fallback — Telemetry Card Builder
-// Generates a styled HTML card from satellite metadata when
-// Wikipedia has no article for the object.
+// Fallback Card
 // -------------------------------------------------------------------
 function buildOsintFallbackCard(satData) {
     var name = satData.name || "UNKNOWN OBJECT";
@@ -375,20 +289,10 @@ function buildOsintFallbackCard(satData) {
     );
 }
 
-// -------------------------------------------------------------------
-// Wikipedia enrichment — Sprint 10: accepts full satData object,
-// falls back to OSINT Telemetry Card when Wikipedia has no data.
-// -------------------------------------------------------------------
 async function fetchWikipediaInfo(satelliteName, satData) {
-    // Clean name: remove trailing parenthetical like " (1)" and tags
-    var cleanName = satelliteName
-        .replace(/\s*\(\d+\)\s*$/, "")
-        .replace(/\s*\[.*?\]\s*$/, "")
-        .trim();
-
+    var cleanName = satelliteName.replace(/\s*\(\d+\)\s*$/, "").replace(/\s*\[.*?\]\s*$/, "").trim();
     elWikiTitle.textContent = cleanName;
 
-    // Sprint 8: show owner & object type under title
     if (elWikiOwnerType) {
         var metaText = "";
         var owner = (satData && satData.owner) || "";
@@ -405,26 +309,15 @@ async function fetchWikipediaInfo(satelliteName, satData) {
     elWikiModal.style.display = "block";
 
     try {
-        var url = "https://en.wikipedia.org/api/rest_v1/page/summary/" +
-            encodeURIComponent(cleanName);
-
+        var url = "https://en.wikipedia.org/api/rest_v1/page/summary/" + encodeURIComponent(cleanName);
         var res = await fetch(url);
-
         if (res.status === 404 || !res.ok) {
-            // Sprint 10: OSINT Fallback — generate telemetry card
-            if (satData) {
-                elWikiContent.innerHTML = buildOsintFallbackCard(satData);
-            } else {
-                elWikiContent.textContent = "No historical data found for this object.";
-            }
+            if (satData) elWikiContent.innerHTML = buildOsintFallbackCard(satData);
+            else elWikiContent.textContent = "No historical data found for this object.";
             return;
         }
-
         var data = await res.json();
-
-        // Check if extract is meaningful
         if (!data.extract || data.extract.trim().length === 0) {
-            // Sprint 10: No extract — show OSINT fallback
             if (satData) {
                 elWikiTitle.textContent = data.title || cleanName;
                 elWikiContent.innerHTML = buildOsintFallbackCard(satData);
@@ -433,67 +326,37 @@ async function fetchWikipediaInfo(satelliteName, satData) {
             }
             return;
         }
-
         elWikiTitle.textContent = data.title || cleanName;
         elWikiContent.textContent = data.extract;
-
     } catch (err) {
         console.error("[orbit-intel] Wikipedia fetch error:", err);
-        // Sprint 10: Network error — show OSINT fallback
-        if (satData) {
-            elWikiContent.innerHTML = buildOsintFallbackCard(satData);
-        } else {
-            elWikiContent.textContent = "No historical data found for this object.";
-        }
+        if (satData) elWikiContent.innerHTML = buildOsintFallbackCard(satData);
+        else elWikiContent.textContent = "No historical data found for this object.";
     }
 }
 
-// -------------------------------------------------------------------
-// Close wiki modal
-// -------------------------------------------------------------------
 if (elWikiClose) {
     elWikiClose.addEventListener("click", function() {
         elWikiModal.style.display = "none";
         selectedSatelliteId = null;
-        // Refresh colours to deselect
         myGlobe.pointsData(currentData);
         myGlobe.pathsData(buildPathsData(currentData));
     });
 }
 
-// -------------------------------------------------------------------
-// Handle satellite click (globe point or anomaly panel)
-// Sprint 10: passes full satellite data object to fetchWikipediaInfo
-// -------------------------------------------------------------------
 function handleSatelliteClick(d) {
     selectedSatelliteId = d.norad_id;
-
-    // Zoom to satellite
-    myGlobe.pointOfView(
-        { lat: d.lat, lng: d.lng, altitude: visualAltitude(d.altitude || d.alt) + 0.5 },
-        1000
-    );
-
-    // Fetch Wikipedia info — pass full satellite data object (Sprint 10)
+    myGlobe.pointOfView({ lat: d.lat, lng: d.lng, altitude: visualAltitude(d.altitude || d.alt) + 0.5 }, 1000);
     fetchWikipediaInfo(d.name, d);
-
-    // Force refresh colours: selected satellite becomes RED
     myGlobe.pointsData(currentData);
     myGlobe.pathsData(buildPathsData(currentData));
 }
 
-// -------------------------------------------------------------------
-// Build tooltip HTML
-// -------------------------------------------------------------------
 function buildTooltip(s) {
     var nameColor = s.is_anomaly ? COLOR_ANOMALY : COLOR_NORMAL;
     if (s.norad_id === selectedSatelliteId) nameColor = COLOR_SELECTED;
-
     return (
-        '<div style="font-family:Helvetica,Arial,sans-serif;' +
-        'font-size:12px;line-height:1.5;padding:6px 10px;' +
-        'background:rgba(2,24,89,0.92);border-radius:6px;' +
-        'border:1px solid ' + nameColor + ';">' +
+        '<div style="font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.5;padding:6px 10px;background:rgba(2,24,89,0.92);border-radius:6px;border:1px solid ' + nameColor + ';">' +
         '<b style="color:' + nameColor + ';">' + s.name + '</b><br>' +
         '<span style="opacity:0.7;">NORAD:</span> ' + s.norad_id + '<br>' +
         '<span style="opacity:0.7;">Orbit:</span> ' + s.orbit_type + '<br>' +
@@ -503,116 +366,135 @@ function buildTooltip(s) {
         '<span style="opacity:0.7;">Mean Motion:</span> ' + (s.mean_motion ? s.mean_motion.toFixed(2) + ' rev/d' : 'N/A') + '<br>' +
         '<span style="opacity:0.7;">Inclination:</span> ' + (s.inclination ? s.inclination.toFixed(2) + '°' : 'N/A') + '<br>' +
         '<span style="opacity:0.7;">AI Score:</span> ' +
-        '<span style="color:' + (s.anomaly_score > 0.5 ? COLOR_ANOMALY : COLOR_NORMAL) +
-        ';font-weight:700;">' + s.anomaly_score.toFixed(4) + '</span>' +
+        '<span style="color:' + (s.anomaly_score > 0.5 ? COLOR_ANOMALY : COLOR_NORMAL) + ';font-weight:700;">' + s.anomaly_score.toFixed(4) + '</span>' +
         '</div>'
     );
 }
 
-// -------------------------------------------------------------------
-// Build anomalies panel HTML
-// Sprint 10: stores all metadata as data-attributes for full
-// satellite data passthrough on click.
-// -------------------------------------------------------------------
 function buildAnomaliesPanel(anomalies) {
     if (anomalies.length === 0) {
-        elAnomaliesList.innerHTML =
-            '<p style="opacity:0.5;font-size:0.75rem;">No anomalies in current view.</p>';
+        elAnomaliesList.innerHTML = '<p style="opacity:0.5;font-size:0.75rem;">No anomalies in current view.</p>';
         return;
     }
-
-    var sorted = anomalies.slice().sort(function(a, b) {
-        return b.anomaly_score - a.anomaly_score;
-    });
-
+    var sorted = anomalies.slice().sort(function(a, b) { return b.anomaly_score - a.anomaly_score; });
     var top = sorted.slice(0, 50);
-
     var html = "";
     top.forEach(function(s) {
-        html +=
-            '<div class="anomaly-item" ' +
-            'data-lat="' + s.lat + '" ' +
-            'data-lon="' + s.lng + '" ' +
-            'data-alt="' + s.altitude + '" ' +
-            'data-norad="' + s.norad_id + '" ' +
-            'data-name="' + s.name + '" ' +
-            'data-owner="' + (s.owner || '') + '" ' +
-            'data-objtype="' + (s.object_type || '') + '" ' +
-            'data-orbittype="' + (s.orbit_type || '') + '" ' +
-            'data-inclination="' + (s.inclination || 0) + '" ' +
-            'data-meanmotion="' + (s.mean_motion || 0) + '" ' +
-            'data-anomalyscore="' + (s.anomaly_score || 0) + '" ' +
-            'data-isanomaly="' + (s.is_anomaly ? '1' : '0') + '">' +
+        html += '<div class="anomaly-item" data-lat="' + s.lat + '" data-lon="' + s.lng + '" data-alt="' + s.altitude + '" data-norad="' + s.norad_id + '" data-name="' + s.name + '" data-owner="' + (s.owner || '') + '" data-objtype="' + (s.object_type || '') + '" data-orbittype="' + (s.orbit_type || '') + '" data-inclination="' + (s.inclination || 0) + '" data-meanmotion="' + (s.mean_motion || 0) + '" data-anomalyscore="' + (s.anomaly_score || 0) + '" data-isanomaly="' + (s.is_anomaly ? '1' : '0') + '">' +
             '<div class="anomaly-item-name">' + s.name + '</div>' +
-            '<div class="anomaly-item-details">' +
-            s.orbit_type + ' · ' + s.alt.toFixed(0) + ' km · ' +
-            (s.owner && s.owner !== 'UNKNOWN' ? s.owner + ' · ' : '') +
-            'Score: <span class="anomaly-item-score">' +
-            s.anomaly_score.toFixed(4) + '</span></div></div>';
+            '<div class="anomaly-item-details">' + s.orbit_type + ' · ' + s.alt.toFixed(0) + ' km · ' + (s.owner && s.owner !== 'UNKNOWN' ? s.owner + ' · ' : '') + 'Score: <span class="anomaly-item-score">' + s.anomaly_score.toFixed(4) + '</span></div></div>';
     });
-
     elAnomaliesList.innerHTML = html;
-
-    // Bind click on each anomaly item in the side panel
-    // Sprint 10: passes all metadata through for OSINT fallback
     var items = elAnomaliesList.querySelectorAll(".anomaly-item");
     items.forEach(function(item) {
         item.addEventListener("click", function() {
-            var lat = parseFloat(item.getAttribute("data-lat"));
-            var lon = parseFloat(item.getAttribute("data-lon"));
-            var alt = parseFloat(item.getAttribute("data-alt"));
-            var noradId = parseInt(item.getAttribute("data-norad"), 10);
-            var name = item.getAttribute("data-name");
-            var owner = item.getAttribute("data-owner");
-            var objtype = item.getAttribute("data-objtype");
-            var orbittype = item.getAttribute("data-orbittype");
-            var inclination = parseFloat(item.getAttribute("data-inclination")) || 0;
-            var meanmotion = parseFloat(item.getAttribute("data-meanmotion")) || 0;
-            var anomalyscore = parseFloat(item.getAttribute("data-anomalyscore")) || 0;
-            var isanomaly = item.getAttribute("data-isanomaly") === "1";
-
             handleSatelliteClick({
-                lat: lat,
-                lng: lon,
-                altitude: alt,
-                alt: alt,
-                norad_id: noradId,
-                name: name,
-                owner: owner,
-                object_type: objtype,
-                orbit_type: orbittype,
-                inclination: inclination,
-                mean_motion: meanmotion,
-                anomaly_score: anomalyscore,
-                is_anomaly: isanomaly
+                lat: parseFloat(item.getAttribute("data-lat")),
+                lng: parseFloat(item.getAttribute("data-lon")),
+                altitude: parseFloat(item.getAttribute("data-alt")),
+                alt: parseFloat(item.getAttribute("data-alt")),
+                norad_id: parseInt(item.getAttribute("data-norad"), 10),
+                name: item.getAttribute("data-name"),
+                owner: item.getAttribute("data-owner"),
+                object_type: item.getAttribute("data-objtype"),
+                orbit_type: item.getAttribute("data-orbittype"),
+                inclination: parseFloat(item.getAttribute("data-inclination")) || 0,
+                mean_motion: parseFloat(item.getAttribute("data-meanmotion")) || 0,
+                anomaly_score: parseFloat(item.getAttribute("data-anomalyscore")) || 0,
+                is_anomaly: item.getAttribute("data-isanomaly") === "1"
             });
         });
     });
 }
 
 // -------------------------------------------------------------------
-// Data fetching — Sprint 8: includes owner & object_type params
-// Sprint 9: also maps mean_motion & inclination from API response
-// /* FIX 2 — isFetching guard prevents concurrent calls */
-// /* FIX 3 — finally block always releases the guard */
+// Sprint 11: Search Bar Logic
+// -------------------------------------------------------------------
+function executeSearch() {
+    if (!elSearchInput) return;
+        var query = elSearchInput.value.trim().toUpperCase();
+    if (!query) return;
+
+    var match = currentData.find(function(s) {
+        return s.name.toUpperCase().includes(query) || s.norad_id.toString() === query;
+    });
+
+    if (match) {
+        handleSatelliteClick(match);
+        elSearchInput.value = ""; 
+    } else {
+        alert("Object '" + query + "' not found in current view.");
+    }
+}
+
+if (elSearchBtn) {
+    elSearchBtn.addEventListener("click", executeSearch);
+}
+if (elSearchInput) {
+    elSearchInput.addEventListener("keypress", function(e) {
+        if (e.key === "Enter") executeSearch();
+    });
+}
+
+// -------------------------------------------------------------------
+// Sprint 11: Export CSV Logic
+// -------------------------------------------------------------------
+function exportToCSV() {
+    if (currentData.length === 0) {
+        alert("No data available to export.");
+        return;
+    }
+    
+    var headers = ["Name", "NORAD_ID", "Object_Type", "Owner", "Orbit_Type", "Altitude_km", "Inclination_deg", "Mean_Motion_rev_day", "Anomaly_Score", "Is_Anomaly"];
+    
+    var csvRows = [];
+    csvRows.push(headers.join(","));
+    
+    currentData.forEach(function(s) {
+        var row = [
+            '"' + s.name + '"',
+            s.norad_id,
+            '"' + (s.object_type || 'UNKNOWN') + '"',
+            '"' + (s.owner || 'UNKNOWN') + '"',
+            '"' + (s.orbit_type || 'UNKNOWN') + '"',
+            Math.round(s.alt || s.altitude),
+            (s.inclination || 0).toFixed(4),
+            (s.mean_motion || 0).toFixed(4),
+            (s.anomaly_score || 0).toFixed(4),
+            s.is_anomaly ? "TRUE" : "FALSE"
+        ];
+        csvRows.push(row.join(","));
+    });
+    
+    var csvString = csvRows.join("\n");
+    var blob = new Blob([csvString], { type: "text/csv;charset=utf-8;" });
+    var url = URL.createObjectURL(blob);
+    
+    var link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", "osint_orbit_data_" + new Date().toISOString().slice(0,10) + ".csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+if (elExportCsvBtn) {
+    elExportCsvBtn.addEventListener("click", exportToCSV);
+}
+
+// -------------------------------------------------------------------
+// Data fetching
 // -------------------------------------------------------------------
 async function fetchData() {
-    // FIX 2: prevent concurrent fetches
     if (isFetching) return;
     isFetching = true;
 
     try {
         var url = API_URL + "?filter_type=" + currentFilter;
-
-        // Sprint 8: append strategic OSINT filters
         var ownerVal = elFilterOwner ? elFilterOwner.value : "";
         var typeVal  = elFilterType  ? elFilterType.value  : "";
-        if (ownerVal) {
-            url += "&owner=" + encodeURIComponent(ownerVal);
-        }
-        if (typeVal) {
-            url += "&object_type=" + encodeURIComponent(typeVal);
-        }
+        if (ownerVal) url += "&owner=" + encodeURIComponent(ownerVal);
+        if (typeVal) url += "&object_type=" + encodeURIComponent(typeVal);
 
         var res = await fetch(url);
         if (!res.ok) throw new Error("HTTP " + res.status);
@@ -625,7 +507,6 @@ async function fetchData() {
         elAnomaliesCount.textContent = anomalies.length.toLocaleString();
         elStatus.textContent = "Live — " + new Date().toLocaleTimeString();
 
-        // Points data for Globe.gl built-in points layer
         var points = data.satellites.map(function(s) {
             return {
                 lat: s.lat,
@@ -639,7 +520,6 @@ async function fetchData() {
                 alt: s.alt,
                 owner: s.owner || "UNKNOWN",
                 object_type: s.object_type || "UNKNOWN",
-                // Sprint 9: orbital dynamics for client-side animation
                 mean_motion: s.mean_motion || 0.0,
                 inclination: s.inclination || 0.0
             };
@@ -649,11 +529,8 @@ async function fetchData() {
             return { lat: s.lat, lng: s.lon, altitude: s.alt };
         });
 
-        // Store globally for selection refresh
         currentData = points;
 
-        // Sprint 9: reset orbital phase tracking when new data arrives
-        // (so animateOrbits re-initialises _orbPhase from new lat values)
         for (var i = 0; i < currentData.length; i++) {
             delete currentData[i]._orbPhase;
         }
@@ -661,15 +538,12 @@ async function fetchData() {
         myGlobe.pointsData(points);
         myGlobe.ringsData(rings);
 
-        // Build and update paths (vector lines)
         var paths = buildPathsData(points);
         myGlobe.pathsData(paths);
 
-        // Build anomalies panel from points (already mapped)
         var anomalyPoints = points.filter(function(p) { return p.is_anomaly; });
         buildAnomaliesPanel(anomalyPoints);
 
-        // Sprint 9: if animation is playing but new data exceeds limit, stop it
         if (isPlaying && currentData.length >= 3000) {
             isPlaying = false;
             if (animationFrameId !== null) {
@@ -682,22 +556,16 @@ async function fetchData() {
                 elPlayOrbitBtn.style.background = "";
             }
         }
-
     } catch (err) {
         console.error("[orbit-intel] fetch error:", err);
         elStatus.textContent = "Connection lost — retrying…";
-
     } finally {
-        // FIX 3: always release the guard, even on error
         isFetching = false;
     }
 }
 
 // -------------------------------------------------------------------
 // Bootstrap
-// /* FIX 5 — replace setInterval with self-rescheduling setTimeout   */
-// /*         so the next fetch only starts AFTER the previous one    */
-// /*         completes — eliminates accumulation of concurrent calls */
 // -------------------------------------------------------------------
 fetchData();
 
@@ -707,3 +575,4 @@ function scheduleNextFetch() {
     }, REFRESH_MS);
 }
 scheduleNextFetch();
+
