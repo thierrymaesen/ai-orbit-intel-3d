@@ -536,20 +536,24 @@ async function fetchData() {
             return { lat: s.lat, lng: s.lon, altitude: s.alt };
         });
 
-        currentData = points;
+               currentData = points;
 
         for (var i = 0; i < currentData.length; i++) {
             delete currentData[i]._orbPhase;
         }
 
-        myGlobe.pointsData(points);
-        myGlobe.ringsData(rings);
+        // CORRECTION : On s'assure de toujours envoyer un tableau ([]), même si la variable est indéfinie
+        myGlobe.pointsData(points || []);
+        myGlobe.ringsData(rings || []);
 
         var paths = buildPathsData(points);
-        myGlobe.pathsData(paths);
+        myGlobe.pathsData(paths || []); // C'EST ICI QUE ÇA PLANTAIT (Ligne 666)
 
         var anomalyPoints = points.filter(function(p) { return p.is_anomaly; });
-        buildAnomaliesPanel(anomalyPoints);
+        if (typeof buildAnomaliesPanel === "function") {
+            buildAnomaliesPanel(anomalyPoints);
+        }
+
 
         if (isPlaying && currentData.length >= 3000) {
             isPlaying = false;
