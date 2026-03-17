@@ -500,7 +500,14 @@ async function fetchData() {
         if (!res.ok) throw new Error("HTTP " + res.status);
 
         var data = res.json ? await res.json() : {};
-        var total = data.total_satellites;
+        
+        // --- PROTECTION (Évite l'erreur 'e.map is not a function' si le backend renvoie un objet vide) ---
+        if (!data || !Array.isArray(data.satellites)) {
+            console.warn("[orbit-intel] Backend returned invalid data. Skipping update.", data);
+            throw new Error("Invalid data format received");
+        }
+
+        var total = data.total_satellites || 0;
         var anomalies = data.satellites.filter(function(s) { return s.is_anomaly; });
 
         elTotalSats.textContent = total.toLocaleString();
@@ -575,4 +582,3 @@ function scheduleNextFetch() {
     }, REFRESH_MS);
 }
 scheduleNextFetch();
-
