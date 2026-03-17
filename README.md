@@ -77,6 +77,8 @@ Lorsque le filtre « Top 10 Anomalies » est activé, seuls les dix satellites l
 
 🎯 **Contrôles UI/UX Avancés** — L'interface inclut un bouton de filtre rapide Top 10 Anomalies qui affiche instantanément uniquement les dix satellites ayant les scores d'anomalie les plus élevés, triés par sévérité. Lorsqu'un satellite est sélectionné, il est mis en surbrillance en rouge avec un marqueur agrandi pour une identification claire contre le fond dense du globe. Le mode Hérisson (Lignes Vectorielles) dessine des lignes proportionnelles à l'altitude depuis chaque satellite vers l'extérieur depuis la surface terrestre, fournissant une cartographie visuelle intuitive de la distance de chaque objet au-dessus du sol — rendant la distinction entre les orbites LEO, MEO et GEO immédiatement apparente.
 
+🔍 **Moteur de Recherche Rapide & Export de Données** — La plateforme intègre une barre de recherche en direct permettant de localiser instantanément n'importe quel objet spatial par son nom (ex: "ISS") ou son identifiant NORAD. L'objet correspondant est immédiatement mis en évidence sur le globe. De plus, un bouton d'exportation CSV d'un seul clic permet aux analystes de télécharger la vue de données actuellement filtrée (incluant les scores d'anomalies, le propriétaire et les paramètres orbitaux) pour une analyse hors ligne ultérieure dans Pandas ou Excel.
+
 ## 🏗️ Architecture & Pile Technique
 
 L'application suit une architecture propre à trois couches séparant l'ingestion de données, le machine learning, le service API et le rendu frontend.
@@ -190,6 +192,9 @@ Une fois l'application lancée et le pipeline de démarrage terminé :
 - **Enrichissement Wikipedia** — Lorsqu'un satellite est sélectionné, l'application interroge automatiquement l'API REST de Wikimedia pour récupérer un résumé de l'article Wikipedia du satellite (si disponible), fournissant un contexte historique et technique instantané.
 - **Mode Hérisson (Vecteurs)** — Activez le mode Hérisson pour afficher des lignes vectorielles proportionnelles à l'altitude s'étendant depuis chaque satellite vers l'espace, fournissant une représentation visuelle de la distribution d'altitude orbitale à travers les bandes LEO, MEO et GEO.
 - **Animation Orbitale (Lecture/Pause)** — Cliquez sur le bouton Play Orbit pour démarrer l'animation orbitale en temps réel. Tous les satellites commencent à se déplacer le long de leurs trajectoires orbitales en fonction de leurs valeurs réelles de mouvement moyen et d'inclinaison, offrant une vue dynamique des schémas de trafic orbital.
+- **Rechercher un Objet** — Tapez le nom (ex: "ISS") ou l'ID NORAD d'un satellite dans la barre de recherche. L'application trouvera l'objet, centrera l'attention dessus et ouvrira sa fiche technique détaillée.
+- **Exporter les Données (CSV)** — Cliquez sur le bouton "Export CSV" dans le panneau de gauche. L'application générera et téléchargera instantanément un fichier `.csv` contenant toutes les données brutes des satellites actuellement affichés selon vos filtres actifs (idéal pour du reporting OSINT).
+
 
 ## 🧪 Exécution des Tests
 
@@ -292,6 +297,8 @@ When the "Top 10 Anomalies" filter is activated, only the ten most anomalous sat
 📚 Wikipedia Live Enrichment & Smart OSINT Fallback — Clicking any satellite queries the Wikimedia API. If the object is famous, its Wikipedia summary appears. If it's a classified object or debris (404 Not Found), the UI automatically generates a Telemetry OSINT Card displaying its real-time AI status, velocity, and ownership.
 
 🎯 **Advanced UI/UX Controls** — The interface includes a Top 10 Anomalies quick-filter button that instantly displays only the ten satellites with the highest anomaly scores, sorted by severity. When a satellite is selected, it is highlighted in red with an enlarged marker for clear identification against the dense global backdrop. The Hedgehog Mode (Vector Lines) feature draws altitude-proportional lines from each satellite outward from the Earth's surface, providing an intuitive visual mapping of how far each object sits above the ground — making the distinction between LEO, MEO, and GEO orbits immediately apparent.
+
+🔍 **Live Search Engine & Data Export** — The platform features a live search bar to instantly locate any space object by its name (e.g. "ISS") or NORAD ID. The matching object is immediately highlighted and targeted on the 3D globe. Additionally, a one-click CSV export button allows analysts to download the currently filtered dataset (including anomaly scores, owner, and orbital parameters) for further offline analysis in Pandas or Excel.
 
 ## 🏗️ Architecture & Tech Stack
 
@@ -406,6 +413,9 @@ Once the application is running and the startup pipeline has completed:
 - **Wikipedia Enrichment** — When a satellite is selected, the application automatically queries the Wikimedia REST API to fetch a summary of the satellite's Wikipedia article (if available), providing instant historical and technical context.
 - **Hedgehog Mode (Vectors)** — Toggle the Hedgehog mode to display altitude-proportional vector lines extending from each satellite toward space, providing a visual representation of orbital altitude distribution across LEO, MEO, and GEO bands.
 - **Orbital Animation (Play/Pause)** — Click the Play Orbit button to start the real-time orbital animation. All satellites begin moving along their orbital paths based on their actual mean motion and inclination values, providing a dynamic view of orbital traffic patterns.
+- **Search for an Object** — Type a satellite's name (e.g. "ISS") or NORAD ID into the search bar. The application will immediately find the object, highlight it on the globe, and open its detailed telemetry card.
+- **Export Data (CSV)** — Click the "Export CSV" button in the left panel. The application will instantly generate and download a `.csv` file containing all the raw data for the currently displayed satellites based on your active filters (ideal for OSINT reporting).
+
 
 ## 🧪 Running the Tests
 
